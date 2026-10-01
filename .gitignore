@@ -1,0 +1,26 @@
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Julia coverage and allocation tracking
+*.jl.cov
+*.jl.*.cov
+*.jl.mem
+
+# Julia documentation builds
+docs/build/
+
+# Manifest.toml is deliberately not ignored: committing it pins the exact
+# package versions behind the paper's results.
+
+# Website build output and dependencies (also in website/.gitignore)
+website/node_modules/
+website/dist/
+website/.astro/
+
+# Python caches (website/scripts)
+__pycache__/
+*.py[cod]
