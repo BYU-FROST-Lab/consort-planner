@@ -1,0 +1,37 @@
+---
+import { resources } from '../config';
+import Icon, { type IconName } from './Icon.astro';
+
+const icons: IconName[] = ['github', 'database', 'video'];
+---
+
+<ul class="grid gap-4 sm:grid-cols-3">
+  {
+    resources.map((r, i) => {
+      const body = (
+        <>
+          <span class="flex size-10 items-center justify-center rounded-lg bg-tint text-ink">
+            <Icon name={icons[i] ?? 'external'} class="size-5" />
+          </span>
+          <span class="mt-4 block font-display text-lg font-medium text-ink">{r.title}</span>
+          <span class="mt-1 block text-sm leading-relaxed text-ink-2">{r.description}</span>
+          <span class:list={['mt-4 inline-flex items-center gap-1 font-display text-sm font-medium', r.href ? 'text-accent' : 'text-ink-3']}>
+            {r.href ? 'Open' : 'Coming soon'}
+            {r.href && <Icon name="external" class="size-3.5" />}
+          </span>
+        </>
+      );
+      return (
+        <li>
+          {r.href ? (
+            <a href={r.href} class="block h-full rounded-xl border border-line bg-white p-5 transition-shadow hover:shadow-md">
+              {body}
+            </a>
+          ) : (
+            <div class="h-full rounded-xl border border-dashed border-line bg-white/60 p-5">{body}</div>
+          )}
+        </li>
+      );
+    })
+  }
+</ul>

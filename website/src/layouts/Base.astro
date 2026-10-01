@@ -1,0 +1,75 @@
+---
+import '@fontsource/instrument-serif/400.css';
+import '@fontsource/google-sans/400.css';
+import '@fontsource/google-sans/500.css';
+import '@fontsource/google-sans/700.css';
+import '@fontsource-variable/noto-sans/wght.css';
+import '../styles/global.css';
+import { getImage } from 'astro:assets';
+import holoocean from '../assets/figures/fig7-holoocean.webp';
+import { authors, googleAnalyticsId, project, publication } from '../config';
+import { url } from '../lib/url';
+
+const canonical = new URL(Astro.url.pathname, Astro.site).href;
+// Link previews get a 1200x630 crop of the HoloOcean render, generated at build time.
+const og = await getImage({ src: holoocean, width: 1200, height: 630, fit: 'cover', format: 'jpg', quality: 80 });
+const ogImage = new URL(og.src, Astro.site).href;
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'ScholarlyArticle',
+  headline: project.title,
+  description: project.description,
+  author: authors.map((a) => ({ '@type': 'Person', name: a.name, ...(a.url && { url: a.url }) })),
+  datePublished: String(publication.year),
+  image: ogImage,
+  url: canonical,
+};
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{project.title}</title>
+    <meta name="description" content={project.description} />
+    <meta name="author" content={authors.map((a) => a.name).join(', ')} />
+    <meta name="theme-color" content="#07131d" />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" type="image/svg+xml" href={url('favicon.svg')} />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={project.title} />
+    <meta property="og:description" content={project.description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Two autonomous underwater vehicles in the HoloOcean simulator" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={project.title} />
+    <meta name="twitter:description" content={project.description} />
+    <meta name="twitter:image" content={ogImage} />
+
+    <script type="application/ld+json" is:inline set:html={JSON.stringify(jsonLd)} />
+
+    {
+      googleAnalyticsId && (
+        <>
+          <script is:inline async src={`https://www.googletagmanager.com/gtag/js?id=${googleAnalyticsId}`} />
+          <script is:inline define:vars={{ id: googleAnalyticsId }}>
+            window.dataLayer = window.dataLayer || [];
+            function gtag() {
+              dataLayer.push(arguments);
+            }
+            gtag('js', new Date());
+            gtag('config', id);
+          </script>
+        </>
+      )
+    }
+  </head>
+  <body class="bg-page font-sans text-ink">
+    <slot />
+  </body>
+</html>

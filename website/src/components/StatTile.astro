@@ -1,0 +1,18 @@
+---
+interface Props {
+  value: string;
+  /** Smaller text after the value, e.g. "vs 54%". */
+  aside?: string;
+  label: string;
+}
+
+const { value, aside, label } = Astro.props;
+---
+
+<div class="rounded-xl border border-line bg-white px-5 py-4">
+  <p class="font-display text-[1.75rem] leading-tight font-medium tracking-tight text-ink tabular-nums">
+    {value}
+    {aside && <span class="text-base font-normal text-ink-3">{aside}</span>}
+  </p>
+  <p class="mt-1.5 text-sm leading-snug text-ink-2">{label}</p>
+</div>

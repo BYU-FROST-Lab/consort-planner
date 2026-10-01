@@ -1,0 +1,407 @@
+---
+/**
+ * The paper's Fig. 2 as an interactive replay. Geometry, trajectories, and the
+ * per-level numbers come from src/data/constraint-ladder.json (read from the
+ * figure's vector paths in the PDF). The sensing and relay cues are drawn from
+ * the paper's stated ranges, not from planner output.
+ */
+import ladder from '../data/constraint-ladder.json';
+import Icon from './Icon.astro';
+
+const { view, start, goal, obstacles, landmarks, levels } = ladder;
+const width = view.x1 - view.x0;
+const height = view.y1 - view.y0;
+// SVG y points down; the data's y points up.
+const viewBox = `${view.x0} ${-view.y1} ${width} ${height}`;
+const pts = (p: number[][]) => p.map(([x, y]) => `${x},${-y}`).join(' ');
+const initial = 0;
+const loosest = levels[0].length;
+const delta = (len: number) => (len === loosest ? 'shortest of the four' : `+${(((len - loosest) / loosest) * 100).toFixed(1)}% vs. 100%`);
+
+// Unit five-point star, scaled in the browser to a fixed on-screen size.
+const star = Array.from({ length: 10 }, (_, i) => {
+  const r = i % 2 === 0 ? 1 : 0.45;
+  const a = -Math.PI / 2 + (i * Math.PI) / 5;
+  return `${(r * Math.cos(a)).toFixed(3)},${(r * Math.sin(a)).toFixed(3)}`;
+}).join(' ');
+
+// x-axis ticks under the map, as fractions of its width.
+const ticks = [0, 500, 1000, 1500].map((x) => ({ x, at: ((x - view.x0) / width) * 100 }));
+const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' } as const;
+---
+
+<div data-ladder class="rounded-2xl border border-line bg-white p-4 shadow-sm sm:p-6">
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <p id="ladder-levels-label" class="font-display text-xs font-medium tracking-wider text-ink-3 uppercase">
+        Terminal bound, % of single-agent reference
+      </p>
+      <div role="group" aria-labelledby="ladder-levels-label" class="mt-2 inline-flex rounded-full border border-line bg-tint p-1">
+        {
+          levels.map((l, i) => (
+            <button
+              type="button"
+              data-level-button={i}
+              aria-pressed={i === initial ? 'true' : 'false'}
+              class="min-w-[3.75rem] rounded-full px-3 py-1.5 font-display text-sm font-medium text-ink-2 transition-colors hover:text-ink aria-pressed:bg-ink aria-pressed:text-white"
+            >
+              {l.level}%
+            </button>
+          ))
+        }
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="font-mono text-sm text-ink-3 tabular-nums">s = <span data-s>0</span> m</span>
+      <button
+        type="button"
+        data-play
+        class="inline-flex h-9 items-center gap-2 rounded-full bg-ink px-4 font-display text-sm font-medium text-white transition-opacity hover:opacity-90"
+      >
+        <span data-icon="play"><Icon name="play" class="size-4" /></span>
+        <span data-icon="pause" hidden><Icon name="pause" class="size-4" /></span>
+        <span data-icon="replay" hidden><Icon name="replay" class="size-4" /></span>
+        <span data-play-label>Play</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="relative mt-4">
+    <svg
+      data-map
+      viewBox={viewBox}
+      class="block h-auto w-full rounded-lg border border-line bg-white"
+      role="img"
+      aria-labelledby="ladder-svg-title"
+    >
+      <title id="ladder-svg-title">
+        A 1700 m corridor with 14 obstacles and three landmarks, with the primary and support trajectories planned at the selected terminal bound.
+      </title>
+      <g>
+        {
+          obstacles.map((o) => (
+            <polygon points={pts(o)} fill="var(--color-obstacle)" stroke="#272c34" stroke-width="1" {...stroke} />
+          ))
+        }
+      </g>
+      <g>{landmarks.map((l) => <ellipse cx={l.x} cy={-l.y} rx={l.rx} ry={l.ry} fill="var(--color-landmark)" />)}</g>
+
+      <!-- Landmark measurements (one line per agent and landmark) and the relay link. -->
+      <g stroke="var(--color-landmark-ink)" stroke-width="1.75" stroke-dasharray="5 3.5" {...stroke}>
+        {
+          ['primary', 'support'].map((agent) =>
+            landmarks.map((_, j) => <line data-sight={`${agent}-${j}`} x1="0" y1="0" x2="0" y2="0" opacity="0" />),
+          )
+        }
+      </g>
+      <line data-link x1="0" y1="0" x2="0" y2="0" stroke="var(--color-relay)" stroke-width="2.5" opacity="0" {...stroke} />
+
+      {
+        levels.map((l, i) => (
+          <g data-level-group={i} class="transition-opacity duration-300" style={`opacity:${i === initial ? 1 : 0}`}>
+            <polyline data-full="support" points={pts(l.support)} fill="none" stroke="var(--color-support-agent)" stroke-width="2" stroke-dasharray="7 4" {...stroke} />
+            <polyline data-full="primary" points={pts(l.primary)} fill="none" stroke="var(--color-primary-agent)" stroke-width="2.75" {...stroke} />
+          </g>
+        ))
+      }
+      <polyline data-trail="support" points="" fill="none" stroke="var(--color-support-agent)" stroke-width="2" stroke-dasharray="7 4" {...stroke} />
+      <polyline data-trail="primary" points="" fill="none" stroke="var(--color-primary-agent)" stroke-width="2.75" {...stroke} />
+
+      <g fill="#14171c">{landmarks.map((l) => <circle data-landmark data-px="2.6" cx={l.x} cy={-l.y} r="5" />)}</g>
+      <circle data-px="5" cx={start[0]} cy={-start[1]} r="10" fill="var(--color-start)" />
+      <polygon
+        data-star
+        data-px="9"
+        data-x={goal[0]}
+        data-y={-goal[1]}
+        points={star}
+        transform={`translate(${goal[0]} ${-goal[1]}) scale(18)`}
+        fill="var(--color-goal)"
+      />
+
+      <circle data-agent="support" data-px="6" cx={start[0]} cy={-start[1]} r="12" fill="var(--color-support-agent)" stroke="#fff" stroke-width="2" vector-effect="non-scaling-stroke" opacity="0" />
+      <circle data-agent="primary" data-px="6.5" cx={start[0]} cy={-start[1]} r="13" fill="var(--color-primary-agent)" stroke="#fff" stroke-width="2" vector-effect="non-scaling-stroke" opacity="0" />
+    </svg>
+    <div class="relative mt-1 h-5 font-mono text-[0.7rem] text-ink-3" aria-hidden="true">
+      {
+        ticks.map((t) => (
+          <span class="absolute -translate-x-1/2" style={`left:${t.at}%`}>
+            {t.x === 0 ? '0 m' : t.x}
+          </span>
+        ))
+      }
+    </div>
+  </div>
+
+  <input
+    type="range"
+    data-scrub
+    min="0"
+    max={Math.round(levels[initial].length)}
+    step="1"
+    value="0"
+    aria-label="Arc length along the plan, in meters"
+    class="mt-2 w-full accent-primary-agent"
+  />
+
+  <ul class="mt-3 flex flex-wrap gap-x-5 gap-y-2 font-display text-[0.8rem] text-ink-2" aria-label="Legend">
+    <li class="flex items-center gap-1.5"><svg width="26" height="8" aria-hidden="true"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--color-primary-agent)" stroke-width="2.75" stroke-linecap="round" /></svg>Primary agent</li>
+    <li class="flex items-center gap-1.5"><svg width="26" height="8" aria-hidden="true"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--color-support-agent)" stroke-width="2" stroke-dasharray="7 4" /></svg>Support agent</li>
+    <li class="flex items-center gap-1.5"><svg width="10" height="10" aria-hidden="true"><circle cx="5" cy="5" r="4.5" fill="var(--color-start)" /></svg>Start</li>
+    <li class="flex items-center gap-1.5"><svg width="14" height="14" viewBox="-1.1 -1.1 2.2 2.2" aria-hidden="true"><polygon points={star} fill="var(--color-goal)" /></svg>Goal</li>
+    <li class="flex items-center gap-1.5"><svg width="16" height="12" aria-hidden="true"><ellipse cx="8" cy="6" rx="7.5" ry="5.5" fill="var(--color-landmark)" /><circle cx="8" cy="6" r="1.8" fill="#14171c" /></svg>Landmark</li>
+    <li class="flex items-center gap-1.5"><svg width="14" height="12" aria-hidden="true"><rect x="0.5" y="0.5" width="13" height="11" fill="var(--color-obstacle)" stroke="#272c34" /></svg>Obstacle</li>
+    <li class="flex items-center gap-1.5"><svg width="26" height="8" aria-hidden="true"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--color-landmark-ink)" stroke-width="1.75" stroke-dasharray="5 3.5" /></svg>Landmark reading</li>
+    <li class="flex items-center gap-1.5"><svg width="26" height="8" aria-hidden="true"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--color-relay)" stroke-width="2.5" stroke-linecap="round" /></svg>Communication</li>
+  </ul>
+
+  <div class="mt-5 grid gap-4 border-t border-line pt-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
+    <dl class="grid grid-cols-3 gap-3">
+      <div>
+        <dt class="text-xs text-ink-3">Bound <span class="font-serif text-sm italic">ū</span></dt>
+        <dd class="font-display text-xl font-medium text-ink tabular-nums" data-stat="bound">{levels[initial].bound.toFixed(2)} m</dd>
+      </div>
+      <div>
+        <dt class="text-xs text-ink-3">Primary length</dt>
+        <dd class="font-display text-xl font-medium text-ink tabular-nums" data-stat="length">{levels[initial].length} m</dd>
+        <dd class="text-xs text-ink-3" data-stat="delta">{delta(levels[initial].length)}</dd>
+      </div>
+      <div>
+        <dt class="text-xs text-ink-3">Terminal <span class="font-serif text-sm italic">σ</span></dt>
+        <dd class="font-display text-xl font-medium text-ink tabular-nums" data-stat="sigma">{levels[initial].sigma.toFixed(2)} m</dd>
+      </div>
+    </dl>
+    <p class="text-[0.95rem] leading-relaxed text-ink-2">
+      <span class="font-semibold text-ink" data-stat="panel">({levels[initial].panel})</span>{' '}
+      <span data-stat="note">{levels[initial].note}</span>
+    </p>
+  </div>
+
+  <script type="application/json" data-levels-meta set:html={JSON.stringify(levels.map((l) => ({ ...l, delta: delta(l.length) })))} />
+</div>
+
+<script>
+  type Pt = [number, number];
+  interface Level {
+    panel: string;
+    level: number;
+    bound: number;
+    length: number;
+    sigma: number;
+    note: string;
+    delta: string;
+    primary: Pt[];
+    support: Pt[];
+  }
+
+  // Ranges from the paper's experimental setup (Sec. V-A).
+  const VISIBILITY = { range: 100, taper: 15 };
+  const COMMS = { range: 300, taper: 20, every: 100 };
+  /** Arc length over which a relay link fades after its checkpoint. */
+  const LINK_FADE = 40;
+  /** Animation speed in meters of arc per second. */
+  const SPEED = 200;
+
+  /** The logistic taper of Eq. (3): about 1 inside the range, 0.5 at it, rolling off over `taper`. */
+  const taper = (d: number, range: number, width: number) => 1 / (1 + Math.exp((d - range) / width));
+
+  class Track {
+    readonly cum: number[];
+    constructor(readonly pts: Pt[]) {
+      this.cum = [0];
+      for (let i = 1; i < pts.length; i++) {
+        this.cum.push(this.cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+      }
+    }
+    get length() {
+      return this.cum[this.cum.length - 1];
+    }
+    /** Index of the segment containing arc length s, and the point there. */
+    locate(s: number): [number, Pt] {
+      const { pts, cum } = this;
+      if (s <= 0) return [0, pts[0]];
+      if (s >= this.length) return [pts.length - 1, pts[pts.length - 1]];
+      let i = 1;
+      while (cum[i] < s) i++;
+      const t = (s - cum[i - 1]) / (cum[i] - cum[i - 1]);
+      return [i, [pts[i - 1][0] + t * (pts[i][0] - pts[i - 1][0]), pts[i - 1][1] + t * (pts[i][1] - pts[i - 1][1])]];
+    }
+    at(s: number): Pt {
+      return this.locate(s)[1];
+    }
+    /** SVG points string for the part of the track up to arc length s. */
+    upTo(s: number): string {
+      const [i, p] = this.locate(s);
+      return [...this.pts.slice(0, i), p].map(([x, y]) => `${x},${-y}`).join(' ');
+    }
+  }
+
+  const dist = (a: Pt, b: Pt) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+
+  for (const root of document.querySelectorAll<HTMLElement>('[data-ladder]')) {
+    const levels: Level[] = JSON.parse(root.querySelector('[data-levels-meta]')!.textContent!);
+    const svg = root.querySelector<SVGSVGElement>('svg[data-map]')!;
+    const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+    const buttons = [...root.querySelectorAll<HTMLButtonElement>('[data-level-button]')];
+    const groups = [...root.querySelectorAll<SVGGElement>('[data-level-group]')];
+    const marker = { primary: q<SVGCircleElement>('[data-agent="primary"]'), support: q<SVGCircleElement>('[data-agent="support"]') };
+    const trail = { primary: q<SVGPolylineElement>('[data-trail="primary"]'), support: q<SVGPolylineElement>('[data-trail="support"]') };
+    const link = q<SVGLineElement>('[data-link]');
+    const scrub = q<HTMLInputElement>('[data-scrub]');
+    const readout = q<HTMLElement>('[data-s]');
+    const play = q<HTMLButtonElement>('[data-play]');
+    const playLabel = q<HTMLElement>('[data-play-label]');
+    const landmarks: Pt[] = [...root.querySelectorAll<SVGCircleElement>('[data-landmark]')].map((c) => [
+      Number(c.getAttribute('cx')),
+      -Number(c.getAttribute('cy')),
+    ]);
+    const sights = (agent: string) => landmarks.map((_, j) => q<SVGLineElement>(`[data-sight="${agent}-${j}"]`));
+    const sight = { primary: sights('primary'), support: sights('support') };
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    let current = 0;
+    let tracks = { primary: new Track(levels[0].primary), support: new Track(levels[0].support) };
+    let s = 0;
+    let playing = false;
+    let started = false;
+    let last = 0;
+    let raf = 0;
+    // The drawn polylines sample the planned splines and run up to 0.6 m short of the
+    // paper's lengths; the readout is scaled so it ends on the paper's number.
+    let readoutScale = levels[0].length / tracks.primary.length;
+
+    // Keep markers a fixed size on screen however wide the map is drawn.
+    const resize = () => {
+      const metersPerPx = svg.viewBox.baseVal.width / svg.getBoundingClientRect().width;
+      for (const el of root.querySelectorAll<SVGElement>('[data-px]')) {
+        const r = Number(el.dataset.px) * metersPerPx;
+        if (el.hasAttribute('data-star')) {
+          el.setAttribute('transform', `translate(${el.dataset.x} ${el.dataset.y}) scale(${r})`);
+        } else {
+          el.setAttribute('r', String(r));
+        }
+      }
+    };
+    new ResizeObserver(resize).observe(svg);
+
+    const setLine = (el: SVGLineElement, a: Pt, b: Pt, opacity: number) => {
+      el.setAttribute('x1', String(a[0]));
+      el.setAttribute('y1', String(-a[1]));
+      el.setAttribute('x2', String(b[0]));
+      el.setAttribute('y2', String(-b[1]));
+      el.setAttribute('opacity', opacity > 0.05 ? opacity.toFixed(2) : '0');
+    };
+
+    const setButton = (state: 'play' | 'pause' | 'replay') => {
+      for (const el of play.querySelectorAll<HTMLElement>('[data-icon]')) el.hidden = el.dataset.icon !== state;
+      playLabel.textContent = state === 'play' ? 'Play' : state === 'pause' ? 'Pause' : 'Replay';
+    };
+
+    const render = () => {
+      const end = tracks.primary.length;
+      const pos = { primary: tracks.primary.at(s), support: tracks.support.at(s) };
+      const visible = started ? '1' : '0';
+      for (const agent of ['primary', 'support'] as const) {
+        marker[agent].setAttribute('cx', String(pos[agent][0]));
+        marker[agent].setAttribute('cy', String(-pos[agent][1]));
+        marker[agent].setAttribute('opacity', visible);
+        trail[agent].setAttribute('points', started ? tracks[agent].upTo(s) : '');
+        landmarks.forEach((lm, j) => {
+          const w = started ? taper(dist(pos[agent], lm), VISIBILITY.range, VISIBILITY.taper) : 0;
+          setLine(sight[agent][j], lm, pos[agent], w);
+        });
+      }
+      // Relay: flash the scheduled exchange at each checkpoint, weighted by the comms taper there.
+      const k = Math.floor(s / COMMS.every) * COMMS.every;
+      let w = 0;
+      if (started && k > 0 && s - k < LINK_FADE) {
+        const d = dist(tracks.primary.at(k), tracks.support.at(k));
+        w = taper(d, COMMS.range, COMMS.taper) * (1 - (s - k) / LINK_FADE);
+      }
+      setLine(link, pos.primary, pos.support, w);
+      // While replaying, the untraveled part of each plan is drawn faintly.
+      groups[current].style.opacity = started ? '0.3' : '1';
+      readout.textContent = String(Math.round(s * readoutScale));
+      scrub.value = String(Math.round(s));
+      if (s >= end && started) setButton('replay');
+    };
+
+    const frame = (t: number) => {
+      if (!playing) return;
+      s = Math.min(s + ((t - last) / 1000) * SPEED, tracks.primary.length);
+      last = t;
+      render();
+      if (s >= tracks.primary.length) {
+        playing = false;
+        return;
+      }
+      raf = requestAnimationFrame(frame);
+    };
+
+    const start = () => {
+      if (s >= tracks.primary.length) s = 0;
+      started = true;
+      playing = true;
+      setButton('pause');
+      last = performance.now();
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(frame);
+    };
+    const stop = () => {
+      playing = false;
+      cancelAnimationFrame(raf);
+      setButton(s >= tracks.primary.length ? 'replay' : 'play');
+    };
+
+    const select = (i: number) => {
+      groups[current].style.opacity = '0';
+      current = i;
+      const l = levels[i];
+      tracks = { primary: new Track(l.primary), support: new Track(l.support) };
+      readoutScale = l.length / tracks.primary.length;
+      buttons.forEach((b, j) => b.setAttribute('aria-pressed', String(i === j)));
+      q('[data-stat="bound"]').textContent = `${l.bound.toFixed(2)} m`;
+      q('[data-stat="length"]').textContent = `${l.length} m`;
+      q('[data-stat="delta"]').textContent = l.delta;
+      q('[data-stat="sigma"]').textContent = `${l.sigma.toFixed(2)} m`;
+      q('[data-stat="panel"]').textContent = `(${l.panel})`;
+      q('[data-stat="note"]').textContent = l.note;
+      scrub.max = String(Math.round(tracks.primary.length));
+      s = 0;
+      if (reduceMotion) {
+        stop();
+        started = false;
+        setButton('play');
+        render();
+      } else {
+        render();
+        start();
+      }
+    };
+
+    buttons.forEach((b, i) => b.addEventListener('click', () => i !== current && select(i)));
+    play.addEventListener('click', () => (playing ? stop() : start()));
+    scrub.addEventListener('input', () => {
+      stop();
+      started = true;
+      s = Number(scrub.value);
+      setButton(s >= tracks.primary.length ? 'replay' : 'play');
+      render();
+    });
+
+    // Play once when the figure first scrolls into view.
+    if (!reduceMotion) {
+      const io = new IntersectionObserver(
+        (entries) => {
+          if (entries.some((e) => e.isIntersecting)) {
+            io.disconnect();
+            if (!started) start();
+          }
+        },
+        { threshold: 0.5 },
+      );
+      io.observe(svg);
+    }
+    render();
+  }
+</script>

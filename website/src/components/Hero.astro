@@ -1,0 +1,118 @@
+---
+import { Picture } from 'astro:assets';
+import holoocean from '../assets/figures/fig7-holoocean.webp';
+import { affiliations, authors, heroVideo, links, project } from '../config';
+import { url } from '../lib/url';
+import HeroButton from './HeroButton.astro';
+import Icon from './Icon.astro';
+
+interface Props {
+  /** Id of the section the scroll cue jumps to. */
+  next: string;
+}
+
+const { next } = Astro.props;
+const numbered = affiliations.length > 1;
+const anyEqual = authors.some((a) => a.equal);
+---
+
+<section class="relative isolate flex min-h-svh items-center overflow-hidden bg-abyss text-white">
+  {
+    heroVideo ? (
+      <video
+        class="absolute inset-0 -z-20 size-full object-cover"
+        autoplay
+        muted
+        loop
+        playsinline
+        aria-hidden="true"
+        data-hero-video
+        src={url(heroVideo)}
+      />
+    ) : (
+      <Picture
+        src={holoocean}
+        formats={['avif']}
+        fallbackFormat="webp"
+        widths={[640, 960, 1280, holoocean.width]}
+        sizes="100vw"
+        alt=""
+        loading="eager"
+        fetchpriority="high"
+        class="absolute inset-0 -z-20 size-full object-cover"
+      />
+    )
+  }
+  <div class="hero-overlay absolute inset-0 -z-10" aria-hidden="true"></div>
+
+  <div class="mx-auto w-full max-w-5xl px-4 py-20 sm:px-6">
+    <div
+      class="rounded-[1.5rem] border border-white/15 bg-[rgb(6_13_22/0.3)] px-5 py-8 text-center shadow-[0_20px_60px_rgb(0_0_0/0.25)] backdrop-blur-[10px] sm:px-10 sm:py-10"
+    >
+      <h1 class="font-serif text-[clamp(2.1rem,6vw,3.5rem)] leading-[1.1] tracking-[0.01em] text-balance text-[#f8fbff]">
+        {project.title}
+      </h1>
+
+      {project.venue && <p class="mt-5 font-display text-lg font-bold text-venue">{project.venue}</p>}
+
+      <p class="mt-5 font-display text-lg text-[#f8fbff] sm:text-xl">
+        {
+          authors.map((a, i) => (
+            <span class="inline-block px-1">
+              {a.url ? (
+                <a href={a.url} class="text-glow hover:underline">
+                  {a.name}
+                </a>
+              ) : (
+                a.name
+              )}
+              {(numbered || a.equal) && (
+                <sup class="text-[0.65em]">
+                  {numbered && a.affiliations.join(',')}
+                  {a.equal && '*'}
+                </sup>
+              )}
+              {i < authors.length - 1 && ','}
+            </span>
+          ))
+        }
+      </p>
+
+      <p class="mt-2 font-display text-[#f8fbff]/85">
+        {
+          affiliations.map((name, i) => (
+            <span class="inline-block px-2">
+              {numbered && <sup class="text-[0.7em]">{i + 1}</sup>}
+              {name}
+            </span>
+          ))
+        }
+      </p>
+      {anyEqual && <p class="mt-1 font-display text-sm text-[#f8fbff]/70">* Equal contribution</p>}
+
+      <div class="mt-7 flex flex-wrap justify-center gap-2.5">
+        <HeroButton label="Paper" icon="paper" href={links.paper} />
+        <HeroButton label="arXiv" icon="arxiv" href={links.arxiv} />
+        <HeroButton label="Code" icon="github" href={links.code} />
+        <HeroButton label="Video" icon="youtube" href={links.video} />
+      </div>
+    </div>
+  </div>
+
+  <a
+    href={`#${next}`}
+    class="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full p-2 text-white/60 transition-colors hover:text-white"
+    aria-label="Scroll to content"
+  >
+    <Icon name="chevron-down" class="size-7 motion-safe:animate-bounce" />
+  </a>
+</section>
+
+<script>
+  // Respect reduced motion: a looping background video should stay still.
+  const video = document.querySelector<HTMLVideoElement>('[data-hero-video]');
+  if (video && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    video.removeAttribute('autoplay');
+    video.pause();
+  }
+</script>

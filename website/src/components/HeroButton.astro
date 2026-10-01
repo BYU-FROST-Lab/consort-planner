@@ -1,0 +1,37 @@
+---
+import Icon, { type IconName } from './Icon.astro';
+
+interface Props {
+  label: string;
+  icon: IconName;
+  /** Missing until the link exists; the button then shows as "soon". */
+  href?: string;
+}
+
+const { label, icon, href } = Astro.props;
+const shape = 'inline-flex h-10 items-center gap-2 rounded-full border px-4 font-display text-[0.95rem] font-medium';
+---
+
+{
+  href ? (
+    <a
+      href={href}
+      class:list={[
+        shape,
+        'border-white/15 bg-[rgb(7_17_28/0.76)] text-white transition-colors hover:bg-[rgb(7_17_28/0.92)] hover:border-white/30',
+      ]}
+    >
+      <Icon name={icon} />
+      {label}
+    </a>
+  ) : (
+    <span
+      class:list={[shape, 'cursor-default border-dashed border-white/20 bg-[rgb(7_17_28/0.4)] text-white/55']}
+      title={`${label}: coming soon`}
+    >
+      <Icon name={icon} />
+      {label}
+      <span class="text-[0.7rem] font-normal uppercase tracking-wider text-white/45">soon</span>
+    </span>
+  )
+}

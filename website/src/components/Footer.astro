@@ -1,0 +1,27 @@
+---
+// The logos are loaded as images, not inlined: both SVGs define a `.cls-1`
+// style, and inlining them in one document would let one recolor the other.
+import byu from '../assets/logos/byu.svg';
+import frost from '../assets/logos/frost-lab.svg';
+import { lab, repoUrl } from '../config';
+---
+
+<footer class="border-t border-line bg-tint">
+  <div class="mx-auto grid max-w-5xl items-center gap-6 px-4 py-10 sm:grid-cols-[1fr_auto_1fr] sm:px-6">
+    <a href={lab.url} class="justify-self-center sm:justify-self-start">
+      <img src={frost.src} width={frost.width} height={frost.height} alt={lab.name} class="h-9 w-auto" />
+    </a>
+    <div class="max-w-md text-center text-xs leading-relaxed text-ink-3">
+      <p>
+        <a href={lab.url} class="link">{lab.fullName}</a>, Brigham Young University
+      </p>
+      <p class="mt-1">
+        Page source in <a href={`${repoUrl}/tree/main/website`} class="link">website/</a>. Layout adapted from the{' '}
+        <a href="https://github.com/eliahuhorwitz/Academic-project-page-template" class="link">Academic Project Page Template</a>.
+      </p>
+    </div>
+    <a href="https://www.byu.edu" class="justify-self-center sm:justify-self-end">
+      <img src={byu.src} width={byu.width} height={byu.height} alt="Brigham Young University" class="h-9 w-auto" />
+    </a>
+  </div>
+</footer>
