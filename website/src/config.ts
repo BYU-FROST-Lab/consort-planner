@@ -27,13 +27,19 @@ export interface Author {
   equal?: boolean;
 }
 
-/** TODO: the full author list, in paper order. */
+/**
+ * In paper order. Links come from the FROST Lab people pages; TODO: add one for
+ * each author who has a personal page.
+ */
 export const authors: Author[] = [
-  { name: 'First Author', affiliations: [1] },
-  { name: 'Brady Moon', url: 'https://bradymoon.com', affiliations: [1] },
+  { name: 'Tony Zhang', affiliations: [1, 2] },
+  { name: 'Ryan Bartholomew', url: 'https://sites.google.com/view/ryan-m-bartholomew', affiliations: [2] },
+  { name: 'Kalliyan Velasco', affiliations: [2] },
+  { name: 'Joshua Mangelson', affiliations: [2] },
+  { name: 'Brady Moon', url: 'https://bradymoon.com', affiliations: [2] },
 ];
 
-export const affiliations = ['Brigham Young University'];
+export const affiliations = ['University of Utah', 'Brigham Young University'];
 
 /**
  * TODO before publishing: the preprint's arXiv ID, e.g. '2610.01234'. The
@@ -42,8 +48,9 @@ export const affiliations = ['Brigham Young University'];
 export const arxivId: string | undefined = undefined;
 
 /**
- * TODO: the YouTube video ID (the part after `watch?v=`). Setting it adds the
- * video section under the hero and enables the Video button.
+ * TODO: the YouTube video ID (the part after `watch?v=`). It fills the video
+ * section under the hero, which shows a "coming soon" frame until then, and
+ * enables the Video button.
  */
 export const youtubeId: string | undefined = undefined;
 
@@ -64,32 +71,19 @@ export const publication = {
 
 export const repoUrl = 'https://github.com/BYU-FROST-Lab/consort-planner';
 
+/**
+ * The hero buttons. The paper's footnote promises the Julia implementation, the
+ * 50 benchmark scenarios, and simulation videos here: Code, Benchmark, and Video
+ * cover them. A button without a link shows as "soon".
+ */
 export const links = {
   paper: arxivId && `https://arxiv.org/pdf/${arxivId}`,
   arxiv: arxivId && `https://arxiv.org/abs/${arxivId}`,
   code: repoUrl,
+  /** TODO: the scenarios' folder in the repo once the code is in, e.g. `${repoUrl}/tree/main/scenarios`. */
+  benchmark: undefined as string | undefined,
   video: youtubeId && `https://youtu.be/${youtubeId}`,
 };
-
-/**
- * What the paper promises on this page. An entry without `href` shows as
- * "Coming soon". TODO: link each one once it is in the repo or on YouTube.
- */
-export const resources: { title: string; description: string; href?: string }[] = [
-  {
-    title: 'Julia implementation',
-    description: 'The CONSORT planner, the four baselines, and the benchmark harness.',
-  },
-  {
-    title: 'Benchmark scenarios',
-    description: 'The 50 randomized corridor scenarios behind the baseline comparison.',
-  },
-  {
-    title: 'Simulation videos',
-    description: 'HoloOcean runs of the planned trajectories under feedback control.',
-    href: links.video,
-  },
-];
 
 export const lab = {
   name: 'FROST Lab',

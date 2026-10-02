@@ -29,13 +29,13 @@ FIG_DIR = SITE / 'src' / 'assets' / 'figures'
 DATA = SITE / 'src' / 'data' / 'constraint-ladder.json'
 DPI = 500
 
-# (output name, caption label). Fig. 2 is rebuilt as an SVG on the site.
+# (output name, caption label). Fig. 2 is rebuilt as an SVG on the site, and
+# Fig. 6's one finding (refinement adds about 1.5 s) is quoted in Fig. 5's caption.
 FIGURES = [
     ('fig1-escort-problem', 'Fig. 1.'),
     ('fig3-baselines', 'Fig. 3.'),
     ('fig4-runtime', 'Fig. 4.'),
     ('fig5-ablation', 'Fig. 5.'),
-    ('fig6-ablation-runtime', 'Fig. 6.'),
     ('fig8-monte-carlo', 'Fig. 8.'),
 ]
 PHOTO = ('fig7-holoocean', 'Fig. 7.')

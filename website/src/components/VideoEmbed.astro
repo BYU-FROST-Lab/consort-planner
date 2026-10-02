@@ -1,20 +1,48 @@
 ---
+import { Picture } from 'astro:assets';
+import holoocean from '../assets/figures/fig7-holoocean.webp';
+import Icon from './Icon.astro';
+
 interface Props {
-  /** YouTube video ID. */
-  id: string;
+  /** YouTube video ID. Without one, a "coming soon" frame holds the video's place. */
+  id?: string;
   title: string;
 }
 
 const { id, title } = Astro.props;
 ---
 
-<div class="aspect-video overflow-hidden rounded-xl bg-black shadow-lg">
-  <iframe
-    src={`https://www.youtube-nocookie.com/embed/${id}?rel=0`}
-    title={title}
-    loading="lazy"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-    referrerpolicy="strict-origin-when-cross-origin"
-    allowfullscreen
-    class="size-full"></iframe>
+<div class="relative aspect-video overflow-hidden rounded-xl bg-abyss shadow-lg">
+  {
+    id ? (
+      <iframe
+        src={`https://www.youtube-nocookie.com/embed/${id}?rel=0`}
+        title={title}
+        loading="lazy"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        referrerpolicy="strict-origin-when-cross-origin"
+        allowfullscreen
+        class="size-full"
+      />
+    ) : (
+      <>
+        {/* Same widths and formats as the hero, so the build reuses its images. */}
+        <Picture
+          src={holoocean}
+          formats={['avif']}
+          fallbackFormat="webp"
+          widths={[640, 960, 1280, holoocean.width]}
+          sizes="(min-width: 56rem) 56rem, 100vw"
+          alt=""
+          class="absolute inset-0 size-full object-cover opacity-35"
+        />
+        <div class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white">
+          <span class="flex size-16 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/25 backdrop-blur-sm">
+            <Icon name="youtube" class="size-7" />
+          </span>
+          <p class="font-display text-lg font-medium">Video coming soon</p>
+        </div>
+      </>
+    )
+  }
 </div>
