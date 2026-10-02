@@ -88,18 +88,18 @@ const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'roun
       </g>
       <g>{landmarks.map((l) => <ellipse cx={l.x} cy={-l.y} rx={l.rx} ry={l.ry} fill="var(--color-landmark)" />)}</g>
 
-      <!-- Communication range around the primary: the comms taper's half-weight distance (300 m). -->
+      <!--
+        Communication range around the primary: the comms taper's half-weight distance (300 m).
+        Hidden while the support is well inside it; the script fades it in near the edge.
+      -->
       <circle
         data-range
         cx={start[0]}
         cy={-start[1]}
         r="300"
-        fill="var(--color-relay)"
-        fill-opacity="0.04"
+        fill="none"
         stroke="var(--color-relay)"
-        stroke-opacity="0.55"
-        stroke-width="1.25"
-        stroke-dasharray="6 5"
+        stroke-width="1"
         vector-effect="non-scaling-stroke"
         opacity="0"
       />
@@ -171,7 +171,7 @@ const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'roun
     <li class="flex items-center gap-1.5"><svg width="14" height="12" aria-hidden="true"><rect x="0.5" y="0.5" width="13" height="11" fill="var(--color-obstacle)" stroke="#272c34" /></svg>Obstacle</li>
     <li class="flex items-center gap-1.5"><svg width="26" height="8" aria-hidden="true"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--color-landmark-ink)" stroke-width="1.75" stroke-dasharray="5 3.5" /></svg>Landmark reading</li>
     <li class="flex items-center gap-1.5"><svg width="26" height="8" aria-hidden="true"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--color-relay)" stroke-width="2.5" stroke-linecap="round" /></svg>Communication</li>
-    <li class="flex items-center gap-1.5"><svg width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="var(--color-relay)" fill-opacity="0.06" stroke="var(--color-relay)" stroke-opacity="0.7" stroke-width="1.25" stroke-dasharray="3 2.5" /></svg>Communication range</li>
+    <li class="flex items-center gap-1.5"><svg width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="none" stroke="var(--color-relay)" stroke-opacity="0.6" stroke-width="1" /></svg>Communication range</li>
   </ul>
 
   <div class="mt-5 grid gap-4 border-t border-line pt-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
@@ -218,6 +218,8 @@ const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'roun
   const COMMS = { range: 300, taper: 20, every: 100 };
   /** Arc length over which a relay link fades after its checkpoint (0.3 s of replay). */
   const LINK_FADE = 60;
+  /** Opacity of the range ring with the support far outside it. */
+  const RING_MAX = 0.45;
   /** Animation speed in meters of arc per second. */
   const SPEED = 200;
 
@@ -345,7 +347,10 @@ const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'roun
       groups[current].style.opacity = started ? '0.3' : '1';
       range.setAttribute('cx', String(pos.primary[0]));
       range.setAttribute('cy', String(-pos.primary[1]));
-      range.setAttribute('opacity', visible);
+      // The ring fades in as the support nears the edge of range: 1 - w is the share of
+      // an exchange's weight the taper would take away at the current separation.
+      const ring = started ? (1 - taper(dist(pos.primary, pos.support), COMMS.range, COMMS.taper)) * RING_MAX : 0;
+      range.setAttribute('opacity', ring > 0.02 ? ring.toFixed(2) : '0');
       sep.textContent = String(Math.round(dist(pos.primary, pos.support)));
       sepWrap.hidden = !started;
       readout.textContent = String(Math.round(s * readoutScale));
