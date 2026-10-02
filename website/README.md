@@ -22,29 +22,28 @@ Then open <http://localhost:4321/consort-planner/>.
 |---|---|
 | Title, authors, venue, links, BibTeX fields | `src/config.ts` |
 | Section text | `src/pages/index.astro` |
-| Figures 1, 3–5, 7, and 8 | `src/assets/figures/`, cropped from the paper by `scripts/extract_figures.py` |
+| Figures 1 and 3–8 | `src/assets/figures/`, cropped from the paper by `scripts/extract_figures.py` |
 | Constraint ladder (Fig. 2) | `src/data/constraint-ladder.json`, read from the figure's vector paths by the same script |
 | Table I | `src/components/ResultsTable.astro`, typed in from the paper |
+| Footer links, favicons | `src/data/footer.ts` and `public/`, copied from the FROST Lab site; keep them in sync |
 
-The constraint ladder redraws Fig. 2 as an interactive SVG. Its obstacles, landmarks, and trajectories come from the PDF, and each level's primary length matches the paper's table to within a meter. The landmark-reading and relay cues in the replay are computed from the ranges in the paper's experimental setup, not exported from the planner.
+The constraint ladder redraws Fig. 2 as an interactive SVG. Its obstacles, landmarks, and trajectories come from the PDF, and each level's primary length matches the paper's table to within a meter. The replay's landmark readings, relay links, and communication-range ring are computed from the paper's model and experimental setup (exchanges every 100 m of arc; logistic tapers at 100 m for landmarks and 300 m for communication), not exported from the planner.
 
 ## Placeholders to replace
 
-All of them live in `src/config.ts`, and `npm run build` warns about the first three until they're set:
+All of them live in `src/config.ts`, and `npm run build` warns about the first two until they're set:
 
 - `arxivId`: enables the Paper and arXiv buttons and fills in the BibTeX
 - `youtubeId`: replaces the "Video coming soon" frame under the hero and enables the Video button
-- `links.benchmark`: the scenarios' folder in this repo, for the Benchmark button
 - `venue`: shown in orange under the title, currently "Under review"
 - `publication.booktitle`: once accepted, switches the BibTeX from arXiv `@misc` to `@inproceedings`
-- `authors`: links for Tony Zhang, Kalliyan Velasco, and Joshua Mangelson. The two current links come from the FROST Lab people pages.
 
 ## Keeping the repo small
 
 The site's committed assets are about 0.6 MB. To keep it that way:
 
 - **Videos go on YouTube**, not in the repo: set `youtubeId`. The optional looping hero video (`heroVideo` in `src/config.ts`, file in `public/videos/`) should be short, muted, and under ~2 MB. Commit it once: every revision of a binary stays in git history.
-- **Figures are lossless WebP** at about twice their on-page width (25–140 KB each). Pages serve them as committed, without re-encoding, so the plot text stays sharp.
+- **Figures are lossless WebP** at about twice their on-page width (20–140 KB each). Pages serve them as committed, without re-encoding, so the plot text stays sharp.
 - **Photos are lossy WebP** at quality 80. The HoloOcean render is 194 KB, and Astro builds the hero's responsive AVIF sizes from it at build time. Build output isn't committed.
 
 To refresh the figures from a new PDF (e.g. the camera-ready), run the extraction script. It needs Python with PyMuPDF and Pillow. Fig. 2's table is an image in the PDF, so the script holds its numbers in `LEVELS`; update those by hand if they change.

@@ -1,4 +1,4 @@
-import { arxivId, authors, links, youtubeId } from '../config';
+import { arxivId, authors, youtubeId } from '../config';
 
 /** Placeholders in src/config.ts that must be filled in before publishing. */
 export function unsetPlaceholders(): string[] {
@@ -6,7 +6,6 @@ export function unsetPlaceholders(): string[] {
   if (authors.some((a) => /^(first|second|third) author$/i.test(a.name))) todo.push('authors');
   if (!arxivId) todo.push('arxivId (Paper and arXiv buttons, BibTeX)');
   if (!youtubeId) todo.push('youtubeId (Video button and section)');
-  if (!links.benchmark) todo.push('links.benchmark (Benchmark button)');
   return todo;
 }
 

@@ -27,16 +27,13 @@ export interface Author {
   equal?: boolean;
 }
 
-/**
- * In paper order. Links come from the FROST Lab people pages; TODO: add one for
- * each author who has a personal page.
- */
+/** In paper order. */
 export const authors: Author[] = [
-  { name: 'Tony Zhang', affiliations: [1, 2] },
+  { name: 'Tony Zhang', url: 'https://www.linkedin.com/in/tony-hu-zhang', affiliations: [1, 2] },
   { name: 'Ryan Bartholomew', url: 'https://sites.google.com/view/ryan-m-bartholomew', affiliations: [2] },
-  { name: 'Kalliyan Velasco', affiliations: [2] },
-  { name: 'Joshua Mangelson', affiliations: [2] },
-  { name: 'Brady Moon', url: 'https://bradymoon.com', affiliations: [2] },
+  { name: 'Kalliyan Velasco', url: 'https://frostlab.byu.edu/people/kalliyan-velasco/', affiliations: [2] },
+  { name: 'Joshua Mangelson', url: 'https://frostlab.byu.edu/people/josh-mangelson/', affiliations: [2] },
+  { name: 'Brady Moon', url: 'https://frostlab.byu.edu/people/brady-moon/', affiliations: [2] },
 ];
 
 export const affiliations = ['University of Utah', 'Brigham Young University'];
@@ -72,16 +69,13 @@ export const publication = {
 export const repoUrl = 'https://github.com/BYU-FROST-Lab/consort-planner';
 
 /**
- * The hero buttons. The paper's footnote promises the Julia implementation, the
- * 50 benchmark scenarios, and simulation videos here: Code, Benchmark, and Video
- * cover them. A button without a link shows as "soon".
+ * The hero buttons. A button without a link shows as "soon". The benchmark
+ * scenarios live in the same repo as the code, so the Code button covers them.
  */
 export const links = {
   paper: arxivId && `https://arxiv.org/pdf/${arxivId}`,
   arxiv: arxivId && `https://arxiv.org/abs/${arxivId}`,
   code: repoUrl,
-  /** TODO: the scenarios' folder in the repo once the code is in, e.g. `${repoUrl}/tree/main/scenarios`. */
-  benchmark: undefined as string | undefined,
   video: youtubeId && `https://youtu.be/${youtubeId}`,
 };
 

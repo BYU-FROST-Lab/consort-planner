@@ -52,7 +52,9 @@ const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'roun
       </div>
     </div>
     <div class="flex items-center gap-3">
-      <span class="font-mono text-sm text-ink-3 tabular-nums">s = <span data-s>0</span> m</span>
+      <span class="font-mono text-sm text-ink-3 tabular-nums">
+        s = <span data-s>0</span> m<span data-sep-wrap hidden> · <span data-sep>0</span> m apart</span>
+      </span>
       <button
         type="button"
         data-play
@@ -85,6 +87,22 @@ const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'roun
         }
       </g>
       <g>{landmarks.map((l) => <ellipse cx={l.x} cy={-l.y} rx={l.rx} ry={l.ry} fill="var(--color-landmark)" />)}</g>
+
+      <!-- Communication range around the primary: the comms taper's half-weight distance (300 m). -->
+      <circle
+        data-range
+        cx={start[0]}
+        cy={-start[1]}
+        r="300"
+        fill="var(--color-relay)"
+        fill-opacity="0.04"
+        stroke="var(--color-relay)"
+        stroke-opacity="0.55"
+        stroke-width="1.25"
+        stroke-dasharray="6 5"
+        vector-effect="non-scaling-stroke"
+        opacity="0"
+      />
 
       <!-- Landmark measurements (one line per agent and landmark) and the relay link. -->
       <g stroke="var(--color-landmark-ink)" stroke-width="1.75" stroke-dasharray="5 3.5" {...stroke}>
@@ -153,6 +171,7 @@ const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'roun
     <li class="flex items-center gap-1.5"><svg width="14" height="12" aria-hidden="true"><rect x="0.5" y="0.5" width="13" height="11" fill="var(--color-obstacle)" stroke="#272c34" /></svg>Obstacle</li>
     <li class="flex items-center gap-1.5"><svg width="26" height="8" aria-hidden="true"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--color-landmark-ink)" stroke-width="1.75" stroke-dasharray="5 3.5" /></svg>Landmark reading</li>
     <li class="flex items-center gap-1.5"><svg width="26" height="8" aria-hidden="true"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--color-relay)" stroke-width="2.5" stroke-linecap="round" /></svg>Communication</li>
+    <li class="flex items-center gap-1.5"><svg width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="var(--color-relay)" fill-opacity="0.06" stroke="var(--color-relay)" stroke-opacity="0.7" stroke-width="1.25" stroke-dasharray="3 2.5" /></svg>Communication range</li>
   </ul>
 
   <div class="mt-5 grid gap-4 border-t border-line pt-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
@@ -197,8 +216,8 @@ const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'roun
   // Ranges from the paper's experimental setup (Sec. V-A).
   const VISIBILITY = { range: 100, taper: 15 };
   const COMMS = { range: 300, taper: 20, every: 100 };
-  /** Arc length over which a relay link fades after its checkpoint. */
-  const LINK_FADE = 40;
+  /** Arc length over which a relay link fades after its checkpoint (0.3 s of replay). */
+  const LINK_FADE = 60;
   /** Animation speed in meters of arc per second. */
   const SPEED = 200;
 
@@ -247,6 +266,9 @@ const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'roun
     const marker = { primary: q<SVGCircleElement>('[data-agent="primary"]'), support: q<SVGCircleElement>('[data-agent="support"]') };
     const trail = { primary: q<SVGPolylineElement>('[data-trail="primary"]'), support: q<SVGPolylineElement>('[data-trail="support"]') };
     const link = q<SVGLineElement>('[data-link]');
+    const range = q<SVGCircleElement>('[data-range]');
+    const sep = q<HTMLElement>('[data-sep]');
+    const sepWrap = q<HTMLElement>('[data-sep-wrap]');
     const scrub = q<HTMLInputElement>('[data-scrub]');
     const readout = q<HTMLElement>('[data-s]');
     const play = q<HTMLButtonElement>('[data-play]');
@@ -321,6 +343,11 @@ const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'roun
       setLine(link, pos.primary, pos.support, w);
       // While replaying, the untraveled part of each plan is drawn faintly.
       groups[current].style.opacity = started ? '0.3' : '1';
+      range.setAttribute('cx', String(pos.primary[0]));
+      range.setAttribute('cy', String(-pos.primary[1]));
+      range.setAttribute('opacity', visible);
+      sep.textContent = String(Math.round(dist(pos.primary, pos.support)));
+      sepWrap.hidden = !started;
       readout.textContent = String(Math.round(s * readoutScale));
       scrub.value = String(Math.round(s));
       if (s >= end && started) setButton('replay');

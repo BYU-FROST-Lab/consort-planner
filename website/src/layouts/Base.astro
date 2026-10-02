@@ -36,7 +36,10 @@ const jsonLd = {
     <meta name="author" content={authors.map((a) => a.name).join(', ')} />
     <meta name="theme-color" content="#07131d" />
     <link rel="canonical" href={canonical} />
+    <!-- The FROST Lab site's favicons. In dark mode the SVG sets the mark on a white tile. -->
+    <link rel="icon" href={url('favicon.ico')} sizes="32x32" />
     <link rel="icon" type="image/svg+xml" href={url('favicon.svg')} />
+    <link rel="apple-touch-icon" href={url('apple-touch-icon.png')} />
 
     <meta property="og:type" content="website" />
     <meta property="og:title" content={project.title} />

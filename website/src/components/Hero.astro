@@ -59,7 +59,6 @@ const anyEqual = authors.some((a) => a.equal);
         {
           authors.map((a, i) => (
             <span class="inline-block px-1">
-              {/* Every name in the link color, as on the IA-TIGRIS page, linked or not. */}
               {a.url ? (
                 <a href={a.url} class="text-glow hover:underline">
                   {a.name}
@@ -95,7 +94,6 @@ const anyEqual = authors.some((a) => a.equal);
         <HeroButton label="Paper" icon="paper" href={links.paper} />
         <HeroButton label="arXiv" icon="arxiv" href={links.arxiv} />
         <HeroButton label="Code" icon="github" href={links.code} />
-        <HeroButton label="Benchmark" icon="database" href={links.benchmark} />
         <HeroButton label="Video" icon="youtube" href={links.video} />
       </div>
     </div>

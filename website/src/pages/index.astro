@@ -3,6 +3,7 @@ import fig1 from '../assets/figures/fig1-escort-problem.webp';
 import fig3 from '../assets/figures/fig3-baselines.webp';
 import fig4 from '../assets/figures/fig4-runtime.webp';
 import fig5 from '../assets/figures/fig5-ablation.webp';
+import fig6 from '../assets/figures/fig6-ablation-runtime.webp';
 import fig7 from '../assets/figures/fig7-holoocean.webp';
 import fig8 from '../assets/figures/fig8-monte-carlo.webp';
 import Citation from '../components/Citation.astro';
@@ -182,48 +183,46 @@ const baselines = [
         }
       </dl>
     </Disclosure>
+  </Section>
 
-    <h3 id="constraint-ladder" class="mt-16 scroll-mt-6 text-center font-serif text-[2rem] leading-tight text-ink">
-      The constraint ladder
-    </h3>
-    <p class="mx-auto mt-2 max-w-2xl text-center text-lg text-ink-2">
-      One scenario, four terminal bounds. Every tightening is paid for in primary path length.
-    </p>
-    <div class="mt-6">
-      <ConstraintLadder />
-    </div>
-    <p class="mx-auto mt-4 max-w-3xl text-center text-sm leading-relaxed text-ink-3">
+  <Section
+    id="constraint-ladder"
+    title="The constraint ladder"
+    lead="One scenario, four terminal bounds. Every tightening is paid for in primary path length."
+    tint
+  >
+    <ConstraintLadder />
+    <p class="mx-auto mt-5 max-w-3xl text-center text-sm leading-relaxed text-ink-3">
       Fig. 2 of the paper: a 1700 m corridor with 14 obstacles and three landmarks. Both agents move at the same constant
-      speed, so arc length <span class="font-serif italic">s</span> is a shared clock. Orange lines are landmark readings and
-      green links the exchanges scheduled every 100 m, each faded by the logistic taper of its range: 100 m for landmarks,
-      300 m for communication.
+      speed, so arc length <span class="font-serif italic">s</span> is a shared clock. The green ring is the 300 m
+      communication range around the primary. Exchanges are scheduled every 100 m of arc and drawn as green links, landmark
+      readings as orange lines, each faded by the logistic taper of its range.
     </p>
   </Section>
 
   <Section
     id="results"
     title="Benchmark results"
-    lead="50 randomized scenarios with one primary and one support. A single unconstrained agent sets each scenario’s reference, and the terminal bound tightens from 100% to 30% of its uncertainty."
-    tint
+    lead="50 randomized scenarios with one primary and one support, as the terminal bound tightens from 100% to 30% of the single-agent reference."
   >
-    <div class="grid items-start gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
-      <div class="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
-        <StatTile value="80%" aside=" vs. 54%" label="of scenarios solved at half the reference bound, against the strongest baseline" />
-        <StatTile value="1.14–1.41×" label="mean primary path length relative to the single-agent reference, from the loosest bound to the tightest" />
-        <StatTile value="18 s" label="median wall-clock time per run, against 14 s for Formation and Sequential" />
-      </div>
+    <div class="grid gap-4 sm:grid-cols-3">
+      <StatTile value="80%" aside=" vs. 54%" label="of scenarios solved at half the reference bound, against the strongest baseline" />
+      <StatTile value="1.14–1.41×" label="mean primary path length relative to the single-agent reference, from the loosest bound to the tightest" />
+      <StatTile value="18 s" label="median wall-clock time per run, against 14 s for Formation and Sequential" />
+    </div>
 
+    <div class="mt-10">
       <Tabs
         label="Benchmark results"
         tabs={[
-          { id: 'success', label: 'Success & length' },
-          { id: 'table', label: 'Table I' },
+          { id: 'success', label: 'Success rate & length' },
+          { id: 'table', label: 'Path length table' },
           { id: 'time', label: 'Planning time' },
           { id: 'ablation', label: 'Ablation' },
         ]}
       >
         <div role="tabpanel" id="panel-success" aria-labelledby="tab-success">
-          <Figure src={fig3} alt="Success rate and primary path length versus constraint level for CONSORT and four baselines." label="Fig. 3." class="mx-auto max-w-[34rem]">
+          <Figure src={fig3} alt="Success rate and primary path length versus constraint level for CONSORT and four baselines." label="Fig. 3." class="mx-auto max-w-[680px]">
             Fraction of the 50 scenarios solved (top) and mean primary path length over the solved scenarios, normalized by
             the single-agent reference length (bottom), as the bound tightens.
           </Figure>
@@ -238,45 +237,51 @@ const baselines = [
           </p>
         </div>
         <div role="tabpanel" id="panel-time" aria-labelledby="tab-time" hidden>
-          <Figure src={fig4} alt="Box plots of wall-clock time per planner at five constraint levels, on a log scale." label="Fig. 4.">
+          <Figure src={fig4} alt="Box plots of wall-clock time per planner at five constraint levels, on a log scale." label="Fig. 4." class="mx-auto max-w-[760px]">
             Wall-clock time per planner over successful runs (log scale). Most of it is overhead shared with the single-agent
             reference, which takes 16 s; only CL-GBT grows with the bound, and its longest run took 730 s.
           </Figure>
         </div>
         <div role="tabpanel" id="panel-ablation" aria-labelledby="tab-ablation" hidden>
-          <Figure src={fig5} alt="Ablation: success rate and path length for the full pipeline, the discrete stage alone, and a straight-line seed." label="Fig. 5." class="mx-auto max-w-[34rem]">
-            Ablation on 30 scenarios drawn without the straight-line screen. The joint search finds the landmarks, and the
-            refinement makes the route short: the discrete stage alone returns paths 2 to 7% longer at every level down to
-            50%, a straight seed solves none below 60%, and the refinement adds about 1.5 s.
-          </Figure>
+          <div class="grid items-start gap-6 md:grid-cols-2">
+            <Figure src={fig5} alt="Ablation: success rate and path length for the full pipeline, the discrete stage alone, and a straight-line seed." label="Fig. 5.">
+              Ablation on a separate set of 30 scenarios drawn without the straight-line screen.
+            </Figure>
+            <Figure src={fig6} alt="Ablation: wall-clock time of the three arms." label="Fig. 6.">
+              Wall-clock time of the ablation arms. The refinement adds about 1.5 s to the discrete stage.
+            </Figure>
+          </div>
+          <p class="mx-auto mt-6 max-w-3xl text-center text-ink-2">
+            The joint search finds the landmarks, and the refinement makes the route short: the discrete stage alone returns
+            paths 2 to 7% longer at every level down to 50%, and a straight seed solves none below 60%.
+          </p>
         </div>
       </Tabs>
     </div>
 
-    <Disclosure summary="About the baselines" class="mt-6">
-      <p class="text-[0.95rem] leading-relaxed text-ink-2">
-        All four share CONSORT’s covariance model, obstacle test, and refinement, so the comparison isolates how the team is
-        routed. Each removes one ingredient:
-      </p>
-      <dl class="mt-4 grid gap-x-8 gap-y-4 sm:grid-cols-2">
-        {
-          baselines.map((b) => (
-            <div>
-              <dt class="font-display font-medium text-ink">
-                {b.name} <span class="ml-1 font-display text-xs tracking-wide text-accent uppercase">removes {b.removes}</span>
-              </dt>
-              <dd class="mt-1 text-[0.95rem] leading-relaxed text-ink-2">{b.body}</dd>
-            </div>
-          ))
-        }
-      </dl>
-    </Disclosure>
+    <h3 class="mt-16 text-center font-serif text-[1.9rem] text-ink">What each baseline removes</h3>
+    <p class="mx-auto mt-2 max-w-2xl text-center text-ink-2">
+      All four share CONSORT’s covariance model, obstacle test, and refinement, so the comparison isolates how the team is
+      routed.
+    </p>
+    <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {
+        baselines.map((b) => (
+          <div class="rounded-xl border border-line bg-white p-5">
+            <p class="font-display font-medium text-ink">{b.name}</p>
+            <p class="mt-0.5 font-display text-xs tracking-wide text-accent uppercase">removes {b.removes}</p>
+            <p class="mt-2 text-sm leading-relaxed text-ink-2">{b.body}</p>
+          </div>
+        ))
+      }
+    </div>
   </Section>
 
   <Section
     id="simulation"
     title="Validation in HoloOcean"
     lead="One plan, flown 30 times with a vehicle, controller, and estimator that share none of the planner’s equations."
+    tint
   >
     <div class="grid items-start gap-6 md:grid-cols-2">
       <Figure src={fig7} alt="Two torpedo-shaped autonomous underwater vehicles over the seabed in the HoloOcean simulator." label="Fig. 7.">
@@ -306,7 +311,7 @@ const baselines = [
     </div>
   </Section>
 
-  <Section id="bibtex" title="BibTeX" tint>
+  <Section id="bibtex" title="BibTeX">
     <Citation />
   </Section>
 
