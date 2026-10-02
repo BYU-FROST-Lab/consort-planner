@@ -1,6 +1,7 @@
 ---
 // The FROST Lab site's footer, with the BYU monogram beside the lab logo as in
-// the lab site's header. The logos are loaded as images, not inlined: both SVGs
+// the lab site's header. The monogram's viewBox is cropped to the letters, so
+// its left edge lines up with the text below. The logos are loaded as images, not inlined: both SVGs
 // define a `.cls-1` style, and inlining them in one document would let one
 // recolor the other.
 import byu from '../assets/logos/byu.svg';
@@ -18,7 +19,7 @@ const muted = 'text-ink-3 transition-colors hover:text-ink hover:underline';
       <div class="col-span-12 lg:col-span-4">
         <div class="mb-3 flex items-center gap-3">
           <a href="https://www.byu.edu/">
-            <img src={byu.src} width={byu.width} height={byu.height} alt="Brigham Young University" class="h-9 w-auto" />
+            <img src={byu.src} width={byu.width} height={byu.height} alt="Brigham Young University" class="h-5 w-auto" />
           </a>
           <span class="h-10 border-l border-line" aria-hidden="true"></span>
           <a href={lab.url}>
