@@ -1,0 +1,13 @@
+---
+// Rendered by KaTeX at build time, so the page ships no math JavaScript.
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
+
+interface Props {
+  tex: string;
+}
+
+const html = katex.renderToString(Astro.props.tex, { displayMode: true, throwOnError: true });
+---
+
+<div class="overflow-x-auto py-1 text-[1.05rem] text-ink" set:html={html} />

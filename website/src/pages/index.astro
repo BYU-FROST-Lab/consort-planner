@@ -1,0 +1,319 @@
+---
+import fig1 from '../assets/figures/fig1-escort-problem.webp';
+import fig3 from '../assets/figures/fig3-baselines.webp';
+import fig4 from '../assets/figures/fig4-runtime.webp';
+import fig5 from '../assets/figures/fig5-ablation.webp';
+import fig6 from '../assets/figures/fig6-ablation-runtime.webp';
+import fig7 from '../assets/figures/fig7-holoocean.webp';
+import fig8 from '../assets/figures/fig8-monte-carlo.webp';
+import Citation from '../components/Citation.astro';
+import ConstraintLadder from '../components/ConstraintLadder.astro';
+import Disclosure from '../components/Disclosure.astro';
+import Figure from '../components/Figure.astro';
+import Footer from '../components/Footer.astro';
+import Hero from '../components/Hero.astro';
+import MathBlock from '../components/MathBlock.astro';
+import ResultsTable from '../components/ResultsTable.astro';
+import Section from '../components/Section.astro';
+import StatTile from '../components/StatTile.astro';
+import Tabs from '../components/Tabs.astro';
+import VideoEmbed from '../components/VideoEmbed.astro';
+import { project, youtubeId } from '../config';
+import Base from '../layouts/Base.astro';
+import { warnPlaceholders } from '../lib/placeholders';
+
+warnPlaceholders();
+
+// Problem (6) of the paper.
+const problem = String.raw`\begin{aligned}
+\min_{\{\theta_i(\cdot)\},\,S_1}\quad & S_1 \\
+\text{s.t.}\quad & \det\big(\Sigma_1(S_1)\big)^{1/4} \le \bar u \\
+& a_j^{\top} x_i(s) \ge b_j + r_a + z_\delta \sqrt{a_j^{\top}\big(\Sigma_i(s) + \Sigma_o\big)\,a_j} \\
+& |\kappa_i(s)| \le 1/r_{\min} \\
+& x_i(0) = x_i^0,\quad \Sigma_i(0) = \Sigma^0,\quad x_1(S_1) = G
+\end{aligned}`;
+
+// Bodies are trusted markup for sub- and superscripts.
+const constraints = [
+  {
+    title: 'Terminal uncertainty',
+    body: 'The primary must arrive with det(Σ)<sup>1/4</sup> ≤ <i>ū</i>, the standard deviation of an isotropic covariance of the same determinant.',
+  },
+  {
+    title: 'Chance-constrained clearance',
+    body: 'Every agent clears every obstacle with probability at least 1 − <i>δ</i> at every instant. The margin covers the vehicle radius and the position uncertainty of both agent and obstacle.',
+  },
+  { title: 'Turn radius', body: 'Each trajectory keeps its curvature within 1/<i>r</i><sub>min</sub>.' },
+  {
+    title: 'Boundary conditions',
+    body: 'Agents start from known positions with a common prior covariance, and the primary must end at the goal <i>G</i>.',
+  },
+];
+
+const belief = [
+  {
+    title: 'Dead reckoning',
+    body: 'Between measurements, position variance grows linearly with distance, faster along the direction of travel than across it.',
+  },
+  {
+    title: 'Landmark fixes',
+    body: 'Range-bearing measurements whose weight decays smoothly with distance through a logistic taper, with no hard cutoff.',
+  },
+  {
+    title: 'Covariance intersection',
+    body: 'At fixed arc-length intervals, agents exchange estimates and fuse them by covariance intersection, which stays consistent under unknown cross-correlation.',
+  },
+];
+
+const baselines = [
+  { name: 'Greedy', removes: 'lookahead', body: 'The primary takes its shortest clear route, and at every step the support picks the move that most reduces the primary’s uncertainty at that step.' },
+  { name: 'Formation', removes: 'support routing', body: 'The support holds a fixed slot in the primary’s body frame while the primary plans alone.' },
+  { name: 'Sequential', removes: 'the joint state space', body: 'Prioritized planning: the primary plans first, the support plans against it, and the primary replans once.' },
+  { name: 'CL-GBT', removes: 'exhaustive lattice search', body: 'One rapidly exploring random tree over the team’s joint belief, inspired by Theurkauf et al. (IROS 2025).' },
+];
+---
+
+<Base>
+  <Hero next="video" />
+
+  <Section id="video" tint>
+    <div class="mx-auto max-w-4xl">
+      <VideoEmbed id={youtubeId} title={`${project.name} video`} />
+    </div>
+  </Section>
+
+  <Section id="overview">
+    <Figure
+      src={fig1}
+      alt="Hexagonal lattice with an obstacle in the middle. The primary agent's path passes above the obstacle to the goal; the support agent's path dips below it toward a landmark, takes a reading, and relays position data to the primary near the goal."
+      label="The escort problem."
+      class="mx-auto max-w-[48rem]"
+    >
+      The primary must reach the goal with its localization uncertainty under a terminal bound, and the support is routed
+      to hold it there. The <span class="font-medium text-support-agent">support agent</span>{' '}
+      <span class="font-medium text-landmark-ink">localizes with a landmark</span> and{' '}
+      <span class="font-medium text-relay">relays position data</span>, enabling the{' '}
+      <span class="font-medium text-primary-agent">primary agent</span> to take a more direct path. Both trajectories are
+      searched on a heading-aware hexagonal lattice and then refined as B-splines.
+    </Figure>
+  </Section>
+
+  <Section id="abstract" title="Abstract" width="prose" tint>
+    <div class="prose-body text-justify hyphens-auto">
+      <p>
+        Centralized multi-agent path planning with cooperative localization in GPS-denied environments is generally
+        computationally intractable when formulated in full belief space due to tightly coupled uncertainty dynamics.
+        Prior work typically approximates belief dynamics or restricts inter-agent coupling. This work examines a
+        multi-agent planning problem in which a primary agent must reach a goal in minimum time subject to a
+        chance-constrained collision-avoidance requirement and a terminal bound on localization uncertainty. We obtain a
+        tractable surrogate of the underlying belief-space problem by optimizing over the mean-state trajectories of all
+        agents and propagating covariance for terminal constraint evaluation only. We propose <em>CONSORT</em> (Cooperative
+        Navigation with Support-Optimized Routing and Trajectories), a discrete-to-continuous pipeline combining
+        hexagonal-grid joint search with spline-based trajectory refinement. Across 50 randomized scenarios, the planners
+        separate as the terminal uncertainty bound tightens, with <em>CONSORT</em> solving <strong>80% of scenarios</strong>{' '}
+        where the strongest baseline solves 54%, at comparable path length. In marine simulations, with the plans executed
+        under feedback control on an independently developed factor-graph estimate, the trajectories remain collision-free
+        and their terminal uncertainty falls <strong>within 6% of the planner’s prediction</strong>.
+      </p>
+    </div>
+  </Section>
+
+  <Section
+    id="method"
+    title="Method"
+    lead="Optimize the mean trajectories of the whole team, and propagate covariance along them only to check the constraints."
+  >
+    <div class="grid gap-4 lg:grid-cols-2">
+      <div class="rounded-xl border border-line bg-white p-6">
+        <p class="font-display text-sm font-medium tracking-wider text-accent uppercase">Stage 1</p>
+        <p class="mt-1 font-display text-xl font-medium text-ink">Joint search on a hexagonal lattice</p>
+        <p class="mt-3 text-[0.95rem] leading-relaxed text-ink-2">
+          Each graph node pairs a hexagonal cell with one of six headings, and three moves leave it: straight, or a ±60°
+          turn into the cell faced by the new heading, the lattice’s counterpart of the turn-radius bound. An A*-style
+          search advances every agent one edge per expansion, propagates each covariance along its edge, and fuses them at
+          communication checkpoints. Pareto pruning over path length and covariance keeps the joint space manageable, and
+          the search is anytime with respect to the terminal bound.
+        </p>
+      </div>
+      <div class="rounded-xl border border-line bg-white p-6">
+        <p class="font-display text-sm font-medium tracking-wider text-accent uppercase">Stage 2</p>
+        <p class="mt-1 font-display text-xl font-medium text-ink">Continuous B-spline refinement</p>
+        <p class="mt-3 text-[0.95rem] leading-relaxed text-ink-2">
+          The seed becomes clamped cubic B-splines with its cell centers as control points. Each segment is enclosed in its
+          MINVO hull, which makes obstacle clearance linear in the control points. A log-barrier merit function, minimized
+          with Adam, shortens the primary’s path while keeping every constraint satisfied, and the same objective pulls an
+          infeasible seed toward feasibility. Refinement cuts the lattice’s zigzag corners, shortening the seed by up to 7%.
+        </p>
+      </div>
+    </div>
+
+    <Disclosure summary="Problem formulation and belief model" class="mt-4">
+      <div class="prose-body">
+        <p>
+          The joint belief of a team grows exponentially with its size, and inter-agent measurements couple the agents’
+          beliefs. CONSORT therefore takes as decision variables only the heading profile of every agent and the primary’s
+          path length <span class="font-serif text-[1.1em] italic">S</span><sub>1</sub>. All agents move at one constant
+          speed, so arc length is a shared clock and minimum time means minimum length:
+        </p>
+      </div>
+      <div class="mt-5 rounded-xl border border-line bg-tint px-4 py-5 sm:px-6">
+        <MathBlock tex={problem} />
+      </div>
+      <dl class="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2">
+        {
+          constraints.map((c) => (
+            <div>
+              <dt class="font-display font-medium text-ink">{c.title}</dt>
+              <dd class="mt-1 text-[0.95rem] leading-relaxed text-ink-2" set:html={c.body} />
+            </div>
+          ))
+        }
+      </dl>
+      <p class="mt-8 text-[0.95rem] leading-relaxed text-ink-2">
+        Covariance is never a decision variable. It is a deterministic function of the mean trajectories:
+      </p>
+      <dl class="mt-4 grid gap-x-8 gap-y-4 sm:grid-cols-3">
+        {
+          belief.map((b) => (
+            <div>
+              <dt class="font-display font-medium text-ink">{b.title}</dt>
+              <dd class="mt-1 text-[0.95rem] leading-relaxed text-ink-2">{b.body}</dd>
+            </div>
+          ))
+        }
+      </dl>
+    </Disclosure>
+  </Section>
+
+  <Section
+    id="constraint-ladder"
+    title="The constraint ladder"
+    lead="One scenario, four terminal bounds. Every tightening is paid for in primary path length."
+    tint
+  >
+    <ConstraintLadder />
+    <p class="mx-auto mt-5 max-w-3xl text-center text-sm leading-relaxed text-ink-3">
+      Fig. 2 of the paper: a 1700 m corridor with 14 obstacles and three landmarks. Both agents move at the same constant
+      speed, so arc length <span class="font-serif italic">s</span> is a shared clock. Exchanges are scheduled every 100 m of
+      arc and drawn as green links, landmark readings as orange lines, each faded by the logistic taper of its range. The
+      faint ring, the primary’s 300 m communication range, appears as the support nears its edge.
+    </p>
+  </Section>
+
+  <Section
+    id="results"
+    title="Benchmark results"
+    lead="50 randomized scenarios with one primary and one support, as the terminal bound tightens from 100% to 30% of the single-agent reference."
+  >
+    <div class="grid gap-4 sm:grid-cols-3">
+      <StatTile value="80%" aside=" vs. 54%" label="of scenarios solved at half the reference bound, against the strongest baseline" />
+      <StatTile value="1.14–1.41×" label="mean primary path length relative to the single-agent reference, from the loosest bound to the tightest" />
+      <StatTile value="18 s" label="median wall-clock time per run, against 14 s for Formation and Sequential" />
+    </div>
+
+    <div class="mt-10">
+      <Tabs
+        label="Benchmark results"
+        tabs={[
+          { id: 'success', label: 'Success rate & length' },
+          { id: 'table', label: 'Path length table' },
+          { id: 'time', label: 'Planning time' },
+          { id: 'ablation', label: 'Ablation' },
+        ]}
+      >
+        <div role="tabpanel" id="panel-success" aria-labelledby="tab-success">
+          <Figure src={fig3} alt="Success rate and primary path length versus constraint level for CONSORT and four baselines." label="Fig. 3." class="mx-auto max-w-[680px]">
+            Fraction of the 50 scenarios solved (top) and mean primary path length over the solved scenarios, normalized by
+            the single-agent reference length (bottom), as the bound tightens.
+          </Figure>
+        </div>
+        <div role="tabpanel" id="panel-table" aria-labelledby="tab-table" hidden>
+          <ResultsTable />
+          <p class="mt-3 text-[0.925rem] leading-relaxed text-ink-3">
+            <span class="font-semibold text-ink-2">Table I.</span> Mean ± SD of primary path length over each method’s own
+            solved scenarios, normalized by <span class="font-serif italic">L</span><sub>ref</sub>. Entries are not comparable
+            across methods without the success rates, since a method that solves only its easiest scenarios reports a short
+            path. † marks fewer than five solved scenarios; “–” means none solved.
+          </p>
+        </div>
+        <div role="tabpanel" id="panel-time" aria-labelledby="tab-time" hidden>
+          <Figure src={fig4} alt="Box plots of wall-clock time per planner at five constraint levels, on a log scale." label="Fig. 4." class="mx-auto max-w-[760px]">
+            Wall-clock time per planner over successful runs (log scale). Most of it is overhead shared with the single-agent
+            reference, which takes 16 s; only CL-GBT grows with the bound, and its longest run took 730 s.
+          </Figure>
+        </div>
+        <div role="tabpanel" id="panel-ablation" aria-labelledby="tab-ablation" hidden>
+          <div class="grid items-start gap-6 md:grid-cols-2">
+            <Figure src={fig5} alt="Ablation: success rate and path length for the full pipeline, the discrete stage alone, and a straight-line seed." label="Fig. 5.">
+              Ablation on a separate set of 30 scenarios drawn without the straight-line screen.
+            </Figure>
+            <Figure src={fig6} alt="Ablation: wall-clock time of the three arms." label="Fig. 6.">
+              Wall-clock time of the ablation arms. The refinement adds about 1.5 s to the discrete stage.
+            </Figure>
+          </div>
+          <p class="mx-auto mt-6 max-w-3xl text-center text-ink-2">
+            The joint search finds the landmarks, and the refinement makes the route short: the discrete stage alone returns
+            paths 2 to 7% longer at every level down to 50%, and a straight seed solves none below 60%.
+          </p>
+        </div>
+      </Tabs>
+    </div>
+
+    <h3 class="mt-16 text-center font-serif text-[1.9rem] text-ink">What each baseline removes</h3>
+    <p class="mx-auto mt-2 max-w-2xl text-center text-ink-2">
+      All four share CONSORT’s covariance model, obstacle test, and refinement, so the comparison isolates how the team is
+      routed.
+    </p>
+    <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {
+        baselines.map((b) => (
+          <div class="rounded-xl border border-line bg-white p-5">
+            <p class="font-display font-medium text-ink">{b.name}</p>
+            <p class="mt-0.5 font-display text-xs tracking-wide text-accent uppercase">removes {b.removes}</p>
+            <p class="mt-2 text-sm leading-relaxed text-ink-2">{b.body}</p>
+          </div>
+        ))
+      }
+    </div>
+  </Section>
+
+  <Section
+    id="simulation"
+    title="Validation in HoloOcean"
+    lead="One plan, flown 30 times with a vehicle, controller, and estimator that share none of the planner’s equations."
+    tint
+  >
+    <div class="grid items-start gap-6 md:grid-cols-2">
+      <Figure src={fig7} alt="Two torpedo-shaped autonomous underwater vehicles over the seabed in the HoloOcean simulator." label="Fig. 7.">
+        The two vehicles in HoloOcean, each flying its planned spline at a fixed depth over the seabed.
+      </Figure>
+      <Figure src={fig8} alt="Planned and mean executed trajectories of both agents with three-sigma cross-track envelopes around a wall." label="Fig. 8.">
+        Closed-loop Monte Carlo of the behind-wall plan, with each agent’s mean executed trajectory and ±3σ cross-track
+        envelope. The primary passes north of the wall while the support diverts south to the landmark and rejoins before
+        the goal.
+      </Figure>
+    </div>
+
+    <div class="mt-6 grid gap-4 sm:grid-cols-3">
+      <StatTile value="30 / 30" label="runs reached the goal within 2% of the planned length, and none penetrated the wall" />
+      <StatTile value="1.70 m" aside=" vs. 1.80 m" label="terminal σ measured from the true error, against the planner’s prediction" />
+      <StatTile value="28 / 30" label="runs with the estimator’s terminal marginal under the 1.8 m bound" />
+    </div>
+
+    <div class="mx-auto mt-8 max-w-3xl prose-body">
+      <p>
+        Every planner in the benchmark shares one covariance model, so the benchmark cannot tell whether that model is
+        calibrated. Here torpedo-shaped vehicles fly the plan under HoloOcean 2.0’s depth and heading autopilot, steering on
+        an independently developed GTSAM factor-graph estimate, with acoustic exchanges every 100 m that succeed only within
+        the planner’s communication range. The true terminal error came within 6% of the prediction, on the conservative
+        side, though it also carried a 2.6 m along-track bias that no covariance check captures.
+      </p>
+    </div>
+  </Section>
+
+  <Section id="bibtex" title="BibTeX">
+    <Citation />
+  </Section>
+
+  <Footer />
+</Base>

@@ -1,0 +1,81 @@
+---
+// Table I of the paper: mean ± SD of primary path length over each method's
+// own solved scenarios, normalized by L_ref. `few` marks fewer than five
+// solved scenarios (the paper's dagger); null means none solved.
+type Cell = { mean: number; sd: number; few?: boolean } | null;
+type Row = { method: string; ours?: boolean; cells: Cell[] };
+
+const c = (mean: number, sd: number, few = false): Cell => ({ mean, sd, few });
+const levels = [100, 70, 50, 30];
+const groups: { title: string; rows: Row[] }[] = [
+  {
+    title: 'Baseline comparison, 50 screened scenarios',
+    rows: [
+      { method: 'CONSORT (ours)', ours: true, cells: [c(1.14, 0.09), c(1.22, 0.23), c(1.34, 0.26), c(1.41, 0.21)] },
+      { method: 'Formation', cells: [c(1.22, 0.12), c(1.34, 0.25), c(1.33, 0.16), c(1.48, 0.45)] },
+      { method: 'Sequential', cells: [c(1.18, 0.14), c(1.41, 0.92), c(1.36, 0.5), c(2.76, 1.51)] },
+      { method: 'CL-GBT', cells: [c(1.47, 0.33), c(1.78, 0.43), c(2.01, 0.41), c(2.07, 0.26, true)] },
+      { method: 'Greedy', cells: [c(1.24, 0.1), c(1.21, 0.06), c(1.13, 0.01, true), c(1.13, 0.01, true)] },
+    ],
+  },
+  {
+    title: 'Ablation, 30 unscreened scenarios',
+    rows: [
+      { method: 'CONSORT (full)', ours: true, cells: [c(1.12, 0.14), c(1.17, 0.23), c(1.22, 0.22), c(1.29, 0.22)] },
+      { method: 'Discrete only', cells: [c(1.2, 0.15), c(1.23, 0.23), c(1.25, 0.22), c(1.29, 0.22)] },
+      { method: 'Straight seed + cont.', cells: [c(0.99, 0.04), c(1.0, 0.0, true), null, null] },
+    ],
+  },
+];
+---
+
+<div class="overflow-x-auto rounded-xl border border-line bg-white">
+  <table class="w-full min-w-[34rem] text-left text-sm tabular-nums">
+    <caption class="sr-only">
+      Mean and standard deviation of primary path length, normalized by the single-agent reference length, at four
+      constraint levels.
+    </caption>
+    <thead class="font-display text-ink-2">
+      <tr class="border-b border-line">
+        <th scope="col" rowspan="2" class="px-4 py-2.5 align-bottom font-medium">Method</th>
+        <th scope="colgroup" colspan="4" class="px-4 pt-2.5 pb-1 text-center font-medium">
+          Constraint level (% of <span class="font-serif text-[0.95rem] italic">U</span><sub>ref</sub>)
+        </th>
+      </tr>
+      <tr class="border-b border-line">
+        {levels.map((l) => <th scope="col" class="px-4 pb-2.5 text-right font-medium">{l}</th>)}
+      </tr>
+    </thead>
+    {
+      groups.map((g) => (
+        <tbody class="border-b border-line last:border-b-0">
+          <tr>
+            <th scope="colgroup" colspan="5" class="bg-tint px-4 py-2 text-xs font-medium tracking-wide text-ink-3 italic">
+              {g.title}
+            </th>
+          </tr>
+          {g.rows.map((r) => (
+            <tr class:list={['border-t border-line/70', r.ours && 'bg-[color-mix(in_srgb,var(--color-primary-agent)_5%,white)]']}>
+              <th scope="row" class:list={['px-4 py-2 whitespace-nowrap', r.ours ? 'font-semibold text-ink' : 'font-normal text-ink-2']}>
+                {r.method}
+              </th>
+              {r.cells.map((cell) => (
+                <td class:list={['px-4 py-2 text-right whitespace-nowrap', r.ours ? 'font-semibold text-ink' : 'text-ink-2']}>
+                  {cell ? (
+                    <>
+                      {cell.mean.toFixed(2)}
+                      <span class="font-normal text-ink-3"> ± {cell.sd.toFixed(2)}</span>
+                      {cell.few && <sup class="text-ink-3">†</sup>}
+                    </>
+                  ) : (
+                    <span class="text-ink-3">–</span>
+                  )}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      ))
+    }
+  </table>
+</div>

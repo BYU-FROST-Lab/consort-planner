@@ -1,0 +1,101 @@
+@import 'tailwindcss';
+
+/*
+ * Palette. The hero follows the IA-TIGRIS page (dark navy, orange venue line,
+ * light-blue author links). Agent and map colors follow the paper's figures,
+ * so the interactive figure reads the same as Fig. 1 and Fig. 2.
+ */
+@theme {
+  --font-serif: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+  --font-display: 'Google Sans', 'Noto Sans Variable', system-ui, sans-serif;
+  --font-sans: 'Noto Sans Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --color-ink: #17202b;
+  --color-ink-2: #465163;
+  --color-ink-3: #687284;
+  --color-line: #e2e6ec;
+  --color-page: #ffffff;
+  --color-tint: #f4f6f9;
+  --color-accent: #0f6fb3;
+
+  --color-abyss: #07131d;
+  --color-glow: #8fd5ff;
+  --color-venue: #ffa500;
+
+  --color-primary-agent: #1f4fd8;
+  --color-support-agent: #86198f;
+  --color-landmark: #ffd1d1;
+  --color-landmark-ink: #b45309;
+  --color-obstacle: #a9aeb6;
+  --color-goal: #f59e0b;
+  --color-start: #15803d;
+  --color-relay: #16a34a;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+    background-color: var(--color-page);
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
+  }
+
+  ::selection {
+    background-color: color-mix(in srgb, var(--color-accent) 22%, transparent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+}
+
+@layer components {
+  /* Same gradient stack as the IA-TIGRIS hero: darken toward the bottom, blue glow top left. */
+  .hero-overlay {
+    background:
+      linear-gradient(180deg, rgb(4 11 18 / 0.45) 0%, rgb(4 11 18 / 0.68) 58%, rgb(4 11 18 / 0.8) 100%),
+      radial-gradient(circle at top left, rgb(15 111 179 / 0.28), transparent 42%);
+  }
+
+  /* Running text inside sections. */
+  .prose-body {
+    font-size: 1.0625rem;
+    line-height: 1.7;
+    color: var(--color-ink-2);
+    & p + p {
+      margin-top: 1em;
+    }
+    & strong {
+      color: var(--color-ink);
+      font-weight: 600;
+    }
+    & em {
+      color: var(--color-ink);
+    }
+  }
+
+  .katex-display {
+    margin: 0;
+  }
+}
+
+@utility link {
+  color: var(--color-accent);
+  text-decoration-line: underline;
+  text-decoration-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
+  text-underline-offset: 3px;
+  &:hover {
+    text-decoration-color: currentColor;
+  }
+}

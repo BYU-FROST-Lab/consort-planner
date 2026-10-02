@@ -1,0 +1,23 @@
+---
+import Icon from './Icon.astro';
+
+interface Props {
+  summary: string;
+  class?: string;
+}
+
+// Detail that most readers can skip stays on the page, closed.
+const { summary, class: className } = Astro.props;
+---
+
+<details class:list={['group rounded-xl border border-line bg-white', className]}>
+  <summary
+    class="flex cursor-pointer list-none items-center justify-between gap-4 rounded-xl px-5 py-4 font-display font-medium text-ink transition-colors hover:bg-tint/60 [&::-webkit-details-marker]:hidden"
+  >
+    {summary}
+    <Icon name="chevron-down" class="size-5 shrink-0 text-ink-3 transition-transform group-open:rotate-180" />
+  </summary>
+  <div class="border-t border-line px-5 pt-5 pb-6">
+    <slot />
+  </div>
+</details>

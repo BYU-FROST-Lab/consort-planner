@@ -1,0 +1,24 @@
+---
+interface Props {
+  id?: string;
+  title?: string;
+  /** One line under the title. */
+  lead?: string;
+  /** Light gray background, alternating with white as on the IA-TIGRIS page. */
+  tint?: boolean;
+  /** 'prose' (48rem) for running text, 'wide' (64rem) for figures. */
+  width?: 'prose' | 'wide';
+}
+
+const { id, title, lead, tint = false, width = 'wide' } = Astro.props;
+---
+
+<section id={id} class:list={['py-16 sm:py-20', tint ? 'bg-tint' : 'bg-page']}>
+  <div class:list={['mx-auto px-4 sm:px-6', width === 'prose' ? 'max-w-3xl' : 'max-w-5xl']}>
+    {title && <h2 class="text-center font-serif text-[2.35rem] leading-tight text-ink sm:text-[2.75rem]">{title}</h2>}
+    {lead && <p class="mx-auto mt-3 max-w-2xl text-center text-lg leading-relaxed text-ink-2 text-pretty">{lead}</p>}
+    <div class:list={{ 'mt-10': title || lead }}>
+      <slot />
+    </div>
+  </div>
+</section>

@@ -1,0 +1,40 @@
+---
+import { bibtex } from '../lib/bibtex';
+import Icon from './Icon.astro';
+
+const text = bibtex();
+---
+
+<div class="relative">
+  <pre
+    class="overflow-x-auto rounded-xl border border-line bg-tint p-5 pr-24 font-mono text-[13px] leading-relaxed text-ink-2"><code data-bibtex>{text}</code></pre>
+  <button
+    type="button"
+    data-copy-bibtex
+    class="absolute top-3 right-3 inline-flex items-center gap-1.5 rounded-md border border-line bg-white px-2.5 py-1 text-xs font-medium text-ink-2 transition-colors hover:text-ink"
+  >
+    <span data-icon="copy"><Icon name="copy" class="size-3.5" /></span>
+    <span data-icon="check" hidden><Icon name="check" class="size-3.5" /></span>
+    <span data-copy-label>Copy</span>
+  </button>
+</div>
+
+<script>
+  const button = document.querySelector<HTMLButtonElement>('[data-copy-bibtex]');
+  const code = document.querySelector<HTMLElement>('[data-bibtex]');
+  const label = button?.querySelector<HTMLElement>('[data-copy-label]');
+  const icons = button ? [...button.querySelectorAll<HTMLElement>('[data-icon]')] : [];
+  const set = (copied: boolean, text: string) => {
+    if (label) label.textContent = text;
+    for (const icon of icons) icon.hidden = (icon.dataset.icon === 'check') !== copied;
+  };
+  button?.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(code?.textContent ?? '');
+      set(true, 'Copied');
+    } catch {
+      set(false, 'Select and copy');
+    }
+    setTimeout(() => set(false, 'Copy'), 2000);
+  });
+</script>
