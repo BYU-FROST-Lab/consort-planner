@@ -23,18 +23,17 @@ Then open <http://localhost:4321/consort-planner/>.
 | Title, authors, venue, links, BibTeX fields | `src/config.ts` |
 | Section text | `src/pages/index.astro` |
 | Figures 1 and 3–8 | `src/assets/figures/`, cropped from the paper by `scripts/extract_figures.py` |
-| Constraint ladder (Fig. 2) | `src/data/constraint-ladder.json`, read from the figure's vector paths by the same script |
+| Constraint ladder (Fig. 2) | `src/data/constraint-ladder.json`, built from the planner's Fig. 2 runs in `code/results/paper/ladder` by `scripts/export_ladder.py` |
 | Table I | `src/components/ResultsTable.astro`, typed in from the paper |
 | Footer links, favicons | `src/data/footer.ts` and `public/`, copied from the FROST Lab site; keep them in sync |
 
-The constraint ladder redraws Fig. 2 as an interactive SVG. Its obstacles, landmarks, and trajectories come from the PDF, and each level's primary length matches the paper's table to within a meter. The replay's landmark readings, relay links, and communication-range ring are computed from the paper's model and experimental setup (exchanges every 100 m of arc; logistic tapers at 100 m for landmarks and 300 m for communication), not exported from the planner.
+The constraint ladder replays Fig. 2's four plans as an interactive SVG. `scripts/export_ladder.py` reads each run's B-spline control points, evaluates the spline with a port of the planner's sampler, and refuses to write unless the primary's length matches `results.yaml` to a millimeter. Fig. 2's configs set `cont_unc_use_waypoints: true`, so the planner schedules exchanges (every 100 m) and weighs landmarks along the control polygon, not the spline. The replay does the same: it runs on that polygon's arc length, takes each exchange's weight from it with the planner's tapers (half weight at 300 m for communication, 100 m for landmarks), and draws the agents on the flown splines at the matching point. The tapers have no hard cutoff, so an exchange beyond 300 m still counts at reduced weight; those are drawn dashed. Re-run the script with `python3 scripts/export_ladder.py` if the runs change.
 
 ## Placeholders to replace
 
-All of them live in `src/config.ts`, and `npm run build` warns about the first two until they're set:
+All of them live in `src/config.ts`, and `npm run build` warns about the first one until it's set:
 
 - `arxivId`: enables the Paper and arXiv buttons and fills in the BibTeX
-- `youtubeId`: replaces the "Video coming soon" frame under the hero and enables the Video button
 - `venue`: shown in orange under the title, currently "Under review"
 - `publication.booktitle`: once accepted, switches the BibTeX from arXiv `@misc` to `@inproceedings`
 
@@ -46,7 +45,7 @@ The site's committed assets are about 0.6 MB. To keep it that way:
 - **Figures are lossless WebP** at about twice their on-page width (20–140 KB each). Pages serve them as committed, without re-encoding, so the plot text stays sharp.
 - **Photos are lossy WebP** at quality 80. The HoloOcean render is 194 KB, and Astro builds the hero's responsive AVIF sizes from it at build time. Build output isn't committed.
 
-To refresh the figures from a new PDF (e.g. the camera-ready), run the extraction script. It needs Python with PyMuPDF and Pillow. Fig. 2's table is an image in the PDF, so the script holds its numbers in `LEVELS`; update those by hand if they change.
+To refresh the figure images from a new PDF (e.g. the camera-ready), run the extraction script. It needs Python with PyMuPDF and Pillow.
 
 ```bash
 pip install pymupdf pillow

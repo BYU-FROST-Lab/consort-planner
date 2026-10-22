@@ -1,14 +1,19 @@
 ---
 /**
- * The paper's Fig. 2 as an interactive replay. Geometry, trajectories, and the
- * per-level numbers come from src/data/constraint-ladder.json (read from the
- * figure's vector paths in the PDF). The sensing and relay cues are drawn from
- * the paper's stated ranges, not from planner output.
+ * The paper's Fig. 2 as an interactive replay of the planner's own runs
+ * (src/data/constraint-ladder.json, built by scripts/export_ladder.py from
+ * code/results/paper/ladder).
+ *
+ * Fig. 2's planner propagates covariance and schedules exchanges along each
+ * agent's waypoint path (the B-spline's control polygon), so the replay runs on
+ * that path's arc length and takes every exchange and landmark weight from it.
+ * The agents are drawn on the flown splines, at the point matching the
+ * planner's clock.
  */
 import ladder from '../data/constraint-ladder.json';
 import Icon from './Icon.astro';
 
-const { view, start, goal, obstacles, landmarks, levels } = ladder;
+const { view, start, goal, obstacles, landmarks, levels, model, pathStep } = ladder;
 const width = view.x1 - view.x0;
 const height = view.y1 - view.y0;
 // SVG y points down; the data's y points up.
@@ -28,6 +33,7 @@ const star = Array.from({ length: 10 }, (_, i) => {
 // x-axis ticks under the map, as fractions of its width.
 const ticks = [0, 500, 1000, 1500].map((x) => ({ x, at: ((x - view.x0) / width) * 100 }));
 const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' } as const;
+const meta = { model, pathStep, levels: levels.map((l) => ({ ...l, delta: delta(l.length) })) };
 ---
 
 <div data-ladder class="rounded-2xl border border-line bg-white p-4 shadow-sm sm:p-6">
@@ -52,9 +58,7 @@ const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'roun
       </div>
     </div>
     <div class="flex items-center gap-3">
-      <span class="font-mono text-sm text-ink-3 tabular-nums">
-        s = <span data-s>0</span> m<span data-sep-wrap hidden> · <span data-sep>0</span> m apart</span>
-      </span>
+      <span class="font-mono text-sm text-ink-3 tabular-nums" data-sep-wrap hidden><span data-sep>0</span> m apart</span>
       <button
         type="button"
         data-play
@@ -86,17 +90,24 @@ const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'roun
           ))
         }
       </g>
-      <g>{landmarks.map((l) => <ellipse cx={l.x} cy={-l.y} rx={l.rx} ry={l.ry} fill="var(--color-landmark)" />)}</g>
+      <!-- Each landmark's map uncertainty, drawn as Fig. 2 does: 2σ of 400x its covariance. -->
+      <g>
+        {
+          landmarks.map((l) => (
+            <ellipse cx={l.x} cy={-l.y} rx={l.rx} ry={l.ry} transform={`rotate(${-l.angle} ${l.x} ${-l.y})`} fill="var(--color-landmark)" />
+          ))
+        }
+      </g>
 
       <!--
-        Communication range around the primary: the comms taper's half-weight distance (300 m).
+        Communication range around the primary: the comms taper's half-weight distance.
         Hidden while the support is well inside it; the script fades it in near the edge.
       -->
       <circle
         data-range
         cx={start[0]}
         cy={-start[1]}
-        r="300"
+        r={model.comm_range}
         fill="none"
         stroke="var(--color-relay)"
         stroke-width="1"
@@ -117,8 +128,8 @@ const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'roun
       {
         levels.map((l, i) => (
           <g data-level-group={i} class="transition-opacity duration-300" style={`opacity:${i === initial ? 1 : 0}`}>
-            <polyline data-full="support" points={pts(l.support)} fill="none" stroke="var(--color-support-agent)" stroke-width="2" stroke-dasharray="7 4" {...stroke} />
-            <polyline data-full="primary" points={pts(l.primary)} fill="none" stroke="var(--color-primary-agent)" stroke-width="2.75" {...stroke} />
+            <polyline data-full="support" points={pts(l.support.path)} fill="none" stroke="var(--color-support-agent)" stroke-width="2" stroke-dasharray="7 4" {...stroke} />
+            <polyline data-full="primary" points={pts(l.primary.path)} fill="none" stroke="var(--color-primary-agent)" stroke-width="2.75" {...stroke} />
           </g>
         ))
       }
@@ -155,10 +166,10 @@ const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'roun
     type="range"
     data-scrub
     min="0"
-    max={Math.round(levels[initial].length)}
+    max={Math.round(levels[initial].end)}
     step="1"
     value="0"
-    aria-label="Arc length along the plan, in meters"
+    aria-label="Progress along the plan"
     class="mt-2 w-full accent-primary-agent"
   />
 
@@ -171,6 +182,7 @@ const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'roun
     <li class="flex items-center gap-1.5"><svg width="14" height="12" aria-hidden="true"><rect x="0.5" y="0.5" width="13" height="11" fill="var(--color-obstacle)" stroke="#272c34" /></svg>Obstacle</li>
     <li class="flex items-center gap-1.5"><svg width="26" height="8" aria-hidden="true"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--color-landmark-ink)" stroke-width="1.75" stroke-dasharray="5 3.5" /></svg>Landmark reading</li>
     <li class="flex items-center gap-1.5"><svg width="26" height="8" aria-hidden="true"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--color-relay)" stroke-width="2.5" stroke-linecap="round" /></svg>Communication</li>
+    <li class="flex items-center gap-1.5"><svg width="26" height="8" aria-hidden="true"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--color-relay)" stroke-opacity="0.55" stroke-width="2" stroke-dasharray="3 3" stroke-linecap="round" /></svg>Beyond range, reduced weight</li>
     <li class="flex items-center gap-1.5"><svg width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="none" stroke="var(--color-relay)" stroke-opacity="0.6" stroke-width="1" /></svg>Communication range</li>
   </ul>
 
@@ -196,11 +208,16 @@ const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'roun
     </p>
   </div>
 
-  <script type="application/json" data-levels-meta set:html={JSON.stringify(levels.map((l) => ({ ...l, delta: delta(l.length) })))} />
+  <script type="application/json" data-ladder-meta set:html={JSON.stringify(meta)} />
 </div>
 
 <script>
   type Pt = [number, number];
+  interface Plan {
+    waypoints: Pt[];
+    path: Pt[];
+    waypointLength: number;
+  }
   interface Level {
     panel: string;
     level: number;
@@ -209,58 +226,86 @@ const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'roun
     sigma: number;
     note: string;
     delta: string;
-    primary: Pt[];
-    support: Pt[];
+    primary: Plan;
+    support: Plan;
+    /** The planner's checkpoints as [waypoint arc, comm weight], from scripts/export_ladder.py. */
+    exchanges: [number, number][];
+    end: number;
+  }
+  interface Model {
+    comm_interval: number;
+    comm_range: number;
+    comm_width: number;
+    comm_weight_min: number;
+    visibility_range: number;
+    visibility_width: number;
   }
 
-  // Ranges from the paper's experimental setup (Sec. V-A).
-  const VISIBILITY = { range: 100, taper: 15 };
-  const COMMS = { range: 300, taper: 20, every: 100 };
   /** Arc length over which a relay link fades after its checkpoint (0.3 s of replay). */
   const LINK_FADE = 60;
   /** Opacity of the range ring with the support far outside it. */
   const RING_MAX = 0.45;
-  /** Animation speed in meters of arc per second. */
+  /** Animation speed in meters of the planner's arc length per second. */
   const SPEED = 200;
 
-  /** The logistic taper of Eq. (3): about 1 inside the range, 0.5 at it, rolling off over `taper`. */
+  /** The planner's logistic taper (comm_weight and the landmark quality in covariance.jl). */
   const taper = (d: number, range: number, width: number) => 1 / (1 + Math.exp((d - range) / width));
+  const dist = (a: Pt, b: Pt) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  const lerp = (a: Pt, b: Pt, t: number): Pt => [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
 
+  /** A polyline by arc length, clamped at both ends: an agent parks at its last waypoint. */
   class Track {
     readonly cum: number[];
     constructor(readonly pts: Pt[]) {
       this.cum = [0];
-      for (let i = 1; i < pts.length; i++) {
-        this.cum.push(this.cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
-      }
+      for (let i = 1; i < pts.length; i++) this.cum.push(this.cum[i - 1] + dist(pts[i], pts[i - 1]));
     }
     get length() {
       return this.cum[this.cum.length - 1];
     }
-    /** Index of the segment containing arc length s, and the point there. */
-    locate(s: number): [number, Pt] {
+    at(s: number): Pt {
       const { pts, cum } = this;
-      if (s <= 0) return [0, pts[0]];
-      if (s >= this.length) return [pts.length - 1, pts[pts.length - 1]];
+      if (s <= 0) return pts[0];
+      if (s >= this.length) return pts[pts.length - 1];
       let i = 1;
       while (cum[i] < s) i++;
-      const t = (s - cum[i - 1]) / (cum[i] - cum[i - 1]);
-      return [i, [pts[i - 1][0] + t * (pts[i][0] - pts[i - 1][0]), pts[i - 1][1] + t * (pts[i][1] - pts[i - 1][1])]];
+      const span = cum[i] - cum[i - 1];
+      return span > 0 ? lerp(pts[i - 1], pts[i], (s - cum[i - 1]) / span) : pts[i];
+    }
+  }
+
+  /** The flown spline, sampled every `step` m of waypoint arc (the last sample sits at the path's end). */
+  class Flown {
+    constructor(
+      readonly pts: Pt[],
+      readonly step: number,
+      readonly length: number,
+    ) {}
+    private locate(s: number): [number, Pt] {
+      const n = this.pts.length;
+      if (s <= 0) return [0, this.pts[0]];
+      if (s >= this.length) return [n - 1, this.pts[n - 1]];
+      const i = Math.min(Math.floor(s / this.step), n - 2);
+      const s0 = i * this.step;
+      const s1 = i + 1 === n - 1 ? this.length : s0 + this.step;
+      return [i, lerp(this.pts[i], this.pts[i + 1], (s - s0) / (s1 - s0))];
     }
     at(s: number): Pt {
       return this.locate(s)[1];
     }
-    /** SVG points string for the part of the track up to arc length s. */
+    /** SVG points string for the part flown by waypoint arc s. */
     upTo(s: number): string {
       const [i, p] = this.locate(s);
-      return [...this.pts.slice(0, i), p].map(([x, y]) => `${x},${-y}`).join(' ');
+      return [...this.pts.slice(0, i + 1), p].map(([x, y]) => `${x},${-y}`).join(' ');
     }
   }
 
-  const dist = (a: Pt, b: Pt) => Math.hypot(a[0] - b[0], a[1] - b[1]);
-
   for (const root of document.querySelectorAll<HTMLElement>('[data-ladder]')) {
-    const levels: Level[] = JSON.parse(root.querySelector('[data-levels-meta]')!.textContent!);
+    const { model, pathStep, levels } = JSON.parse(root.querySelector('[data-ladder-meta]')!.textContent!) as {
+      model: Model;
+      pathStep: number;
+      levels: Level[];
+    };
     const svg = root.querySelector<SVGSVGElement>('svg[data-map]')!;
     const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
     const buttons = [...root.querySelectorAll<HTMLButtonElement>('[data-level-button]')];
@@ -272,7 +317,6 @@ const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'roun
     const sep = q<HTMLElement>('[data-sep]');
     const sepWrap = q<HTMLElement>('[data-sep-wrap]');
     const scrub = q<HTMLInputElement>('[data-scrub]');
-    const readout = q<HTMLElement>('[data-s]');
     const play = q<HTMLButtonElement>('[data-play]');
     const playLabel = q<HTMLElement>('[data-play-label]');
     const landmarks: Pt[] = [...root.querySelectorAll<SVGCircleElement>('[data-landmark]')].map((c) => [
@@ -283,16 +327,25 @@ const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'roun
     const sight = { primary: sights('primary'), support: sights('support') };
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+    // One level's plan: the planner's waypoint geometry (for landmark weights), the
+    // flown splines (for drawing), and the exchanges the planner scheduled.
+    const load = (l: Level) => ({
+      planned: { primary: new Track(l.primary.waypoints), support: new Track(l.support.waypoints) },
+      flown: {
+        primary: new Flown(l.primary.path, pathStep, l.primary.waypointLength),
+        support: new Flown(l.support.path, pathStep, l.support.waypointLength),
+      },
+      end: l.end,
+      exchanges: l.exchanges.map(([s, w]) => ({ s, w })),
+    });
+
     let current = 0;
-    let tracks = { primary: new Track(levels[0].primary), support: new Track(levels[0].support) };
+    let plan = load(levels[0]);
     let s = 0;
     let playing = false;
     let started = false;
     let last = 0;
     let raf = 0;
-    // The drawn polylines sample the planned splines and run up to 0.6 m short of the
-    // paper's lengths; the readout is scaled so it ends on the paper's number.
-    let readoutScale = levels[0].length / tracks.primary.length;
 
     // Keep markers a fixed size on screen however wide the map is drawn.
     const resize = () => {
@@ -322,48 +375,46 @@ const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'roun
     };
 
     const render = () => {
-      const end = tracks.primary.length;
-      const pos = { primary: tracks.primary.at(s), support: tracks.support.at(s) };
+      const pos = { primary: plan.flown.primary.at(s), support: plan.flown.support.at(s) };
       const visible = started ? '1' : '0';
       for (const agent of ['primary', 'support'] as const) {
         marker[agent].setAttribute('cx', String(pos[agent][0]));
         marker[agent].setAttribute('cy', String(-pos[agent][1]));
         marker[agent].setAttribute('opacity', visible);
-        trail[agent].setAttribute('points', started ? tracks[agent].upTo(s) : '');
+        trail[agent].setAttribute('points', started ? plan.flown[agent].upTo(s) : '');
+        // Landmark quality as the planner computes it, at its waypoint position.
+        const at = plan.planned[agent].at(s);
         landmarks.forEach((lm, j) => {
-          const w = started ? taper(dist(pos[agent], lm), VISIBILITY.range, VISIBILITY.taper) : 0;
+          const w = started ? taper(dist(at, lm), model.visibility_range, model.visibility_width) : 0;
           setLine(sight[agent][j], lm, pos[agent], w);
         });
       }
-      // Relay: flash the scheduled exchange at each checkpoint, weighted by the comms taper there.
-      const k = Math.floor(s / COMMS.every) * COMMS.every;
-      let w = 0;
-      if (started && k > 0 && s - k < LINK_FADE) {
-        const d = dist(tracks.primary.at(k), tracks.support.at(k));
-        w = taper(d, COMMS.range, COMMS.taper) * (1 - (s - k) / LINK_FADE);
-      }
-      setLine(link, pos.primary, pos.support, w);
-      // While replaying, the untraveled part of each plan is drawn faintly.
-      groups[current].style.opacity = started ? '0.3' : '1';
+      // Relay: the planner's exchange at each checkpoint, at its weight. Below half
+      // weight the agents are beyond the communication range, so the link is dashed.
+      const active = started ? plan.exchanges.find((e) => s >= e.s && s - e.s < LINK_FADE) : undefined;
+      if (active) link.setAttribute('stroke-dasharray', active.w < 0.5 ? '6 5' : 'none');
+      setLine(link, pos.primary, pos.support, active ? active.w * (1 - (s - active.s) / LINK_FADE) : 0);
+      // The range ring fades in as the support nears its edge: 1 - w is the share of
+      // an exchange's weight the taper would take away at the drawn separation.
+      const apart = dist(pos.primary, pos.support);
+      const ring = started ? (1 - taper(apart, model.comm_range, model.comm_width)) * RING_MAX : 0;
       range.setAttribute('cx', String(pos.primary[0]));
       range.setAttribute('cy', String(-pos.primary[1]));
-      // The ring fades in as the support nears the edge of range: 1 - w is the share of
-      // an exchange's weight the taper would take away at the current separation.
-      const ring = started ? (1 - taper(dist(pos.primary, pos.support), COMMS.range, COMMS.taper)) * RING_MAX : 0;
       range.setAttribute('opacity', ring > 0.02 ? ring.toFixed(2) : '0');
-      sep.textContent = String(Math.round(dist(pos.primary, pos.support)));
+      sep.textContent = String(Math.round(apart));
       sepWrap.hidden = !started;
-      readout.textContent = String(Math.round(s * readoutScale));
+      // While replaying, the unflown part of each plan is drawn faintly.
+      groups[current].style.opacity = started ? '0.3' : '1';
       scrub.value = String(Math.round(s));
-      if (s >= end && started) setButton('replay');
+      if (s >= plan.end && started) setButton('replay');
     };
 
     const frame = (t: number) => {
       if (!playing) return;
-      s = Math.min(s + ((t - last) / 1000) * SPEED, tracks.primary.length);
+      s = Math.min(s + ((t - last) / 1000) * SPEED, plan.end);
       last = t;
       render();
-      if (s >= tracks.primary.length) {
+      if (s >= plan.end) {
         playing = false;
         return;
       }
@@ -371,7 +422,7 @@ const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'roun
     };
 
     const start = () => {
-      if (s >= tracks.primary.length) s = 0;
+      if (s >= plan.end) s = 0;
       started = true;
       playing = true;
       setButton('pause');
@@ -382,15 +433,14 @@ const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'roun
     const stop = () => {
       playing = false;
       cancelAnimationFrame(raf);
-      setButton(s >= tracks.primary.length ? 'replay' : 'play');
+      setButton(s >= plan.end ? 'replay' : 'play');
     };
 
     const select = (i: number) => {
       groups[current].style.opacity = '0';
       current = i;
       const l = levels[i];
-      tracks = { primary: new Track(l.primary), support: new Track(l.support) };
-      readoutScale = l.length / tracks.primary.length;
+      plan = load(l);
       buttons.forEach((b, j) => b.setAttribute('aria-pressed', String(i === j)));
       q('[data-stat="bound"]').textContent = `${l.bound.toFixed(2)} m`;
       q('[data-stat="length"]').textContent = `${l.length} m`;
@@ -398,7 +448,7 @@ const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'roun
       q('[data-stat="sigma"]').textContent = `${l.sigma.toFixed(2)} m`;
       q('[data-stat="panel"]').textContent = `(${l.panel})`;
       q('[data-stat="note"]').textContent = l.note;
-      scrub.max = String(Math.round(tracks.primary.length));
+      scrub.max = String(Math.round(plan.end));
       s = 0;
       if (reduceMotion) {
         stop();
@@ -417,7 +467,7 @@ const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'roun
       stop();
       started = true;
       s = Number(scrub.value);
-      setButton(s >= tracks.primary.length ? 'replay' : 'play');
+      setButton(s >= plan.end ? 'replay' : 'play');
       render();
     });
 
