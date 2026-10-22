@@ -1,0 +1,68 @@
+---
+/**
+ * A section index down the left edge, for screens wide enough that it sits
+ * clear of the content (64rem centered, so 1360 px and up). Hidden over the
+ * hero; the section crossing the middle of the screen is marked current.
+ */
+interface Props {
+  items: { id: string; label: string }[];
+  /** Id of the hero; the index appears once it has mostly scrolled away. */
+  after: string;
+}
+
+const { items, after } = Astro.props;
+---
+
+<nav
+  data-section-nav
+  data-after={after}
+  aria-label="Sections"
+  class="pointer-events-none fixed top-1/2 left-6 z-30 hidden -translate-y-1/2 opacity-0 transition-opacity duration-300 data-shown:pointer-events-auto data-shown:opacity-100 min-[1360px]:block print:hidden"
+>
+  <ul class="border-l border-line">
+    {
+      items.map((item) => (
+        <li>
+          <a
+            href={`#${item.id}`}
+            data-nav={item.id}
+            class="-ml-px block border-l-2 border-transparent py-1 pl-3 font-display text-[0.8rem] text-ink-3 transition-colors hover:text-ink aria-[current=location]:border-accent aria-[current=location]:text-ink"
+          >
+            {item.label}
+          </a>
+        </li>
+      ))
+    }
+  </ul>
+</nav>
+
+<script>
+  const nav = document.querySelector<HTMLElement>('[data-section-nav]');
+  const hero = nav && document.getElementById(nav.dataset.after ?? '');
+  if (nav && hero) {
+    const links = new Map([...nav.querySelectorAll<HTMLAnchorElement>('a[data-nav]')].map((a) => [a.dataset.nav!, a]));
+    const mark = (id: string) => {
+      for (const [key, a] of links) {
+        if (key === id) a.setAttribute('aria-current', 'location');
+        else a.removeAttribute('aria-current');
+      }
+    };
+
+    // Shown once the hero covers less than the top quarter of the screen.
+    new IntersectionObserver(([entry]) => nav.toggleAttribute('data-shown', !entry.isIntersecting), {
+      rootMargin: '0px 0px -75% 0px',
+    }).observe(hero);
+
+    // The current section is the one crossing the middle of the screen.
+    const spy = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) if (e.isIntersecting) mark(e.target.id);
+      },
+      { rootMargin: '-50% 0px -50% 0px' },
+    );
+    for (const id of links.keys()) {
+      const section = document.getElementById(id);
+      if (section) spy.observe(section);
+    }
+  }
+</script>

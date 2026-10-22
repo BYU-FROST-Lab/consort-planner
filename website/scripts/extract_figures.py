@@ -1,15 +1,15 @@
-"""Regenerate the site's figure images from the paper PDF.
+"""Regenerate the site's figure images that exist only in the paper PDF.
 
     pip install pymupdf pillow
     python scripts/extract_figures.py path/to/paper.pdf
 
-Writes src/assets/figures/fig*.webp, relative to website/: the paper's figures
-as lossless WebP at about 2x their on-page width (fig7 is a photo, lossy).
+Writes Figs. 1, 7, and 8 to src/assets/figures/, relative to website/: lossless
+WebP at about 2x their on-page width (Fig. 7 is a photo, lossy). It finds each
+figure by its caption ("Fig. N."), so update FIGURES if those change.
 
-Only needed when the figures change, e.g. for the camera-ready PDF. It finds
-each figure by its caption ("Fig. N."), so update FIGURES if those change.
-Fig. 2 is not an image on the site: scripts/export_ladder.py builds its data
-from the planner's runs.
+The plots (Figs. 3-6) come from their own PDFs in code/figures/paper instead,
+via scripts/export_plots.py, and Fig. 2 is built from the planner's runs by
+scripts/export_ladder.py.
 """
 
 import sys
@@ -22,13 +22,9 @@ SITE = Path(__file__).resolve().parent.parent
 FIG_DIR = SITE / 'src' / 'assets' / 'figures'
 DPI = 500
 
-# (output name, caption label). Fig. 2 is drawn from the planner's data instead.
+# (output name, caption label).
 FIGURES = [
     ('fig1-escort-problem', 'Fig. 1.'),
-    ('fig3-baselines', 'Fig. 3.'),
-    ('fig4-runtime', 'Fig. 4.'),
-    ('fig5-ablation', 'Fig. 5.'),
-    ('fig6-ablation-runtime', 'Fig. 6.'),
     ('fig8-monte-carlo', 'Fig. 8.'),
 ]
 PHOTO = ('fig7-holoocean', 'Fig. 7.')

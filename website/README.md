@@ -22,7 +22,8 @@ Then open <http://localhost:4321/consort-planner/>.
 |---|---|
 | Title, authors, venue, links, BibTeX fields | `src/config.ts` |
 | Section text | `src/pages/index.astro` |
-| Figures 1 and 3–8 | `src/assets/figures/`, cropped from the paper by `scripts/extract_figures.py` |
+| Figures 3–6 | `src/assets/figures/`, converted from their PDFs in `code/figures/paper` by `scripts/export_plots.py` |
+| Figures 1, 7, and 8 | `src/assets/figures/`, cropped from the paper by `scripts/extract_figures.py` |
 | Constraint ladder (Fig. 2) | `src/data/constraint-ladder.json`, built from the planner's Fig. 2 runs in `code/results/paper/ladder` by `scripts/export_ladder.py` |
 | Table I | `src/components/ResultsTable.astro`, typed in from the paper |
 | Footer links, favicons | `src/data/footer.ts` and `public/`, copied from the FROST Lab site; keep them in sync |
@@ -45,12 +46,22 @@ The site's committed assets are about 0.6 MB. To keep it that way:
 - **Figures are lossless WebP** at about twice their on-page width (20–140 KB each). Pages serve them as committed, without re-encoding, so the plot text stays sharp.
 - **Photos are lossy WebP** at quality 80. The HoloOcean render is 194 KB, and Astro builds the hero's responsive AVIF sizes from it at build time. Build output isn't committed.
 
-To refresh the figure images from a new PDF (e.g. the camera-ready), run the extraction script. It needs Python with PyMuPDF and Pillow.
+To refresh the plots after `code/figures/paper` changes, run `python3 scripts/export_plots.py` (needs Ghostscript and Pillow). Figs. 1, 7, and 8 come from the paper itself; to refresh them from a new PDF (e.g. the camera-ready):
 
 ```bash
 pip install pymupdf pillow
 python scripts/extract_figures.py path/to/paper.pdf
 ```
+
+## Analytics
+
+Google Analytics is set up as on the lab site: the build reads the measurement ID from `PUBLIC_GA_ID`, and CI sets it from the repository variable of the same name. To use the lab's property, give this repo the same value as the lab site's variable:
+
+```bash
+gh variable set PUBLIC_GA_ID --repo BYU-FROST-Lab/consort-planner --body "$(gh variable get PUBLIC_GA_ID --repo BYU-FROST-Lab/byu-frost-lab.github.io)"
+```
+
+Without the variable, as in local builds, the page loads no analytics.
 
 ## Checks
 

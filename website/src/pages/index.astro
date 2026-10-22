@@ -1,8 +1,10 @@
 ---
 import fig1 from '../assets/figures/fig1-escort-problem.webp';
-import fig3 from '../assets/figures/fig3-baselines.webp';
+import fig3a from '../assets/figures/fig3a-success.webp';
+import fig3b from '../assets/figures/fig3b-length.webp';
 import fig4 from '../assets/figures/fig4-runtime.webp';
-import fig5 from '../assets/figures/fig5-ablation.webp';
+import fig5a from '../assets/figures/fig5a-ablation-success.webp';
+import fig5b from '../assets/figures/fig5b-ablation-length.webp';
 import fig6 from '../assets/figures/fig6-ablation-runtime.webp';
 import fig7 from '../assets/figures/fig7-holoocean.webp';
 import fig8 from '../assets/figures/fig8-monte-carlo.webp';
@@ -10,11 +12,13 @@ import Citation from '../components/Citation.astro';
 import ConstraintLadder from '../components/ConstraintLadder.astro';
 import Disclosure from '../components/Disclosure.astro';
 import Figure from '../components/Figure.astro';
+import FigurePanels from '../components/FigurePanels.astro';
 import Footer from '../components/Footer.astro';
 import Hero from '../components/Hero.astro';
 import MathBlock from '../components/MathBlock.astro';
 import ResultsTable from '../components/ResultsTable.astro';
 import Section from '../components/Section.astro';
+import SectionNav from '../components/SectionNav.astro';
 import StatTile from '../components/StatTile.astro';
 import Tabs from '../components/Tabs.astro';
 import VideoEmbed from '../components/VideoEmbed.astro';
@@ -65,16 +69,44 @@ const belief = [
   },
 ];
 
+// How each baseline plans (Sec. V-B and code/src/planner/algorithms). Two keep a
+// lattice planner for the primary and place the support by a fixed rule; the
+// other two plan on a different backbone.
 const baselines = [
-  { name: 'Greedy', removes: 'lookahead', body: 'The primary takes its shortest clear route, and at every step the support picks the move that most reduces the primary’s uncertainty at that step.' },
-  { name: 'Formation', removes: 'support routing', body: 'The support holds a fixed slot in the primary’s body frame while the primary plans alone.' },
-  { name: 'Sequential', removes: 'the joint state space', body: 'Prioritized planning: the primary plans first, the support plans against it, and the primary replans once.' },
-  { name: 'CL-GBT', removes: 'exhaustive lattice search', body: 'One rapidly exploring random tree over the team’s joint belief, inspired by Theurkauf et al. (IROS 2025).' },
+  {
+    name: 'Greedy',
+    body: 'Plans on CONSORT’s lattice without a joint search. The primary takes its shortest obstacle-clear route with no uncertainty reasoning, and at each step the support takes whichever of its three moves most reduces the primary’s uncertainty at that step, with no lookahead.',
+  },
+  {
+    name: 'Formation',
+    body: 'The primary plans alone, with weighted A* over lattice cells and beliefs, and accepts a goal on the uncertainty it has with the support attached. The support is not searched: it holds a fixed slot in the primary’s body frame, one cell out at a 60° multiple off its heading, and both lateral slots are tried.',
+  },
+  {
+    name: 'Sequential',
+    body: 'Prioritized planning, one agent at a time. The primary plans first with the support parked at the start, under a bound relaxed to twice the threshold. The support then searches its whole route against the committed primary, minimizing the primary’s terminal uncertainty, and the primary replans once against it.',
+  },
+  {
+    name: 'CL-GBT',
+    body: 'Sampling instead of lattice search, after Theurkauf et al. (IROS 2025): one rapidly exploring random tree over the team’s joint state in continuous space, with goal-biased sampling for the primary and the support’s samples placed on the primary’s. It keeps that tree but uses CONSORT’s belief model, and its iteration budget matches CONSORT’s compute ceiling.',
+  },
 ];
 ---
 
 <Base>
   <Hero next="video" />
+  <SectionNav
+    after="top"
+    items={[
+      { id: 'video', label: 'Video' },
+      { id: 'overview', label: 'Overview' },
+      { id: 'abstract', label: 'Abstract' },
+      { id: 'method', label: 'Method' },
+      { id: 'constraint-ladder', label: 'Constraint ladder' },
+      { id: 'results', label: 'Results' },
+      { id: 'simulation', label: 'HoloOcean' },
+      { id: 'bibtex', label: 'BibTeX' },
+    ]}
+  />
 
   <Section id="video" tint>
     <div class="mx-auto max-w-4xl">
@@ -232,15 +264,21 @@ const baselines = [
         tabs={[
           { id: 'success', label: 'Success rate & length' },
           { id: 'table', label: 'Path length table' },
-          { id: 'time', label: 'Planning time' },
           { id: 'ablation', label: 'Ablation' },
+          { id: 'time', label: 'Planning time' },
         ]}
       >
         <div role="tabpanel" id="panel-success" aria-labelledby="tab-success">
-          <Figure src={fig3} alt="Success rate and primary path length versus constraint level for CONSORT and four baselines." label="Fig. 3." class="mx-auto max-w-[680px]">
-            Fraction of the 50 scenarios solved (top) and mean primary path length over the solved scenarios, normalized by
-            the single-agent reference length (bottom), as the bound tightens.
-          </Figure>
+          <FigurePanels
+            panels={[
+              { src: fig3a, alt: 'Success rate versus constraint level for CONSORT and four baselines.' },
+              { src: fig3b, alt: 'Mean primary path length over the solved scenarios, relative to the single-agent reference, versus constraint level.' },
+            ]}
+            label="Fig. 3."
+          >
+            Fraction of the 50 scenarios solved (left) and mean primary path length over the solved scenarios, normalized by
+            the single-agent reference length (right), as the bound tightens.
+          </FigurePanels>
         </div>
         <div role="tabpanel" id="panel-table" aria-labelledby="tab-table" hidden>
           <ResultsTable />
@@ -251,41 +289,47 @@ const baselines = [
             path. † marks fewer than five solved scenarios; “–” means none solved.
           </p>
         </div>
-        <div role="tabpanel" id="panel-time" aria-labelledby="tab-time" hidden>
-          <Figure src={fig4} alt="Box plots of wall-clock time per planner at five constraint levels, on a log scale." label="Fig. 4." class="mx-auto max-w-[760px]">
-            Wall-clock time per planner over successful runs (log scale). Most of it is overhead shared with the single-agent
-            reference, which takes 16 s; only CL-GBT grows with the bound, and its longest run took 730 s.
-          </Figure>
-        </div>
         <div role="tabpanel" id="panel-ablation" aria-labelledby="tab-ablation" hidden>
-          <div class="grid gap-x-6 gap-y-3 md:grid-cols-2">
-            <Figure subgrid src={fig5} alt="Ablation: success rate and path length for the full pipeline, the discrete stage alone, and a straight-line seed." label="Fig. 5.">
-              Ablation on a separate set of 30 scenarios drawn without the straight-line screen.
-            </Figure>
-            <Figure subgrid class="max-md:mt-6" src={fig6} alt="Ablation: wall-clock time of the three arms." label="Fig. 6.">
-              Wall-clock time of the ablation arms. The refinement adds about 1.5 s to the discrete stage.
-            </Figure>
-          </div>
+          <FigurePanels
+            panels={[
+              { src: fig5a, alt: 'Ablation: success rate of the full pipeline, the discrete stage alone, and a straight-line seed.' },
+              { src: fig5b, alt: 'Ablation: mean primary path length of the three arms, relative to the single-agent reference.' },
+            ]}
+            label="Fig. 5."
+          >
+            Ablation on a separate set of 30 scenarios drawn without the straight-line screen: success rate (left) and mean
+            primary path length over the solved scenarios (right).
+          </FigurePanels>
           <p class="mx-auto mt-6 max-w-3xl text-center text-ink-2">
             The joint search finds the landmarks, and the refinement makes the route short: the discrete stage alone returns
             paths 2 to 7% longer at every level down to 50%, and a straight seed solves none below 60%.
           </p>
         </div>
+        <div role="tabpanel" id="panel-time" aria-labelledby="tab-time" hidden>
+          <div class="grid gap-x-6 gap-y-3 md:grid-cols-2">
+            <Figure subgrid src={fig4} alt="Box plots of wall-clock time per planner at five constraint levels, on a log scale." label="Fig. 4.">
+              Wall-clock time per planner over successful runs (log scale). Most of it is overhead shared with the
+              single-agent reference, which takes 16 s; only CL-GBT grows with the bound, and its longest run took 730 s.
+            </Figure>
+            <Figure subgrid class="max-md:mt-6" src={fig6} alt="Box plots of wall-clock time of the three ablation arms." label="Fig. 6.">
+              Wall-clock time of the ablation arms. The refinement adds about 1.5 s to the discrete stage.
+            </Figure>
+          </div>
+        </div>
       </Tabs>
     </div>
 
-    <h3 class="mt-16 text-center font-serif text-[1.9rem] text-ink">What each baseline removes</h3>
+    <h3 class="mt-16 text-center font-serif text-[1.9rem] text-ink">Baselines</h3>
     <p class="mx-auto mt-2 max-w-2xl text-center text-ink-2">
-      All four share CONSORT’s covariance model, obstacle test, and refinement, so the comparison isolates how the team is
-      routed.
+      All four use CONSORT’s covariance model, obstacle test, and B-spline refinement, so the differences in the results
+      come from how each one plans the team’s routes.
     </p>
-    <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="mt-6 grid gap-4 sm:grid-cols-2">
       {
         baselines.map((b) => (
           <div class="rounded-xl border border-line bg-white p-5">
             <p class="font-display font-medium text-ink">{b.name}</p>
-            <p class="mt-0.5 font-display text-xs tracking-wide text-accent uppercase">removes {b.removes}</p>
-            <p class="mt-2 text-sm leading-relaxed text-ink-2">{b.body}</p>
+            <p class="mt-1.5 text-[0.95rem] leading-relaxed text-ink-2">{b.body}</p>
           </div>
         ))
       }
