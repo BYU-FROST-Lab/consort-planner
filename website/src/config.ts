@@ -87,6 +87,3 @@ export const lab = {
   fullName: 'Field Robotic Systems Lab',
   url: 'https://frostlab.byu.edu',
 };
-
-/** Google Analytics measurement ID ('G-XXXXXXXXXX'). Undefined means no analytics. */
-export const googleAnalyticsId: string | undefined = undefined;
