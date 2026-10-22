@@ -1,0 +1,12 @@
+# Python 3.12. Versions are the ones that flew the paper's 30 Monte Carlo trials.
+gtsam==4.2.2
+numpy==1.26.4
+scipy==1.15.3
+matplotlib==3.10.8
+pillow==12.3.0
+pynput==1.7.7
+opencv-python==4.11.0.86
+# HoloOcean 2.3.0 is installed from source (https://github.com/byu-holoocean/HoloOcean,
+# client/ directory, `pip install -e client`), followed by its "Ocean" world package
+# (`python -c "import holoocean; holoocean.install('Ocean')"`, about 5 GB).
+# It needs Linux and a GPU. The paper's runs used an RTX 3070 Ti.

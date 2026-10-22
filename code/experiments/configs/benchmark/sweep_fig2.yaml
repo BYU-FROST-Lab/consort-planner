@@ -1,0 +1,53 @@
+# ==========================================================================
+# Fig. 2 constraint ladder — read ONLY by run_constraint_sweep.jl
+# ==========================================================================
+# ONE hand-built scenario (`ladder_r3`, src/planner/scenario_generation.jl: staggered
+# rectangular walls, 14 obstacles, three landmarks, a 1700 m corridor), CONSORT
+# only, walked down the same 100 → 30 % ladder the population sweeps use. The
+# deliverable is the SHAPE of the plan at each rung (paper Fig. 2 and its table).
+# figures/scripts/export_ladder_paths.jl + plot_fig2_ladder_mpl.py draw it from the
+# per-rung main_ctrls.csv files this sweep saves. The shipped output of this
+# exact file is results/paper/ladder/ (the four rungs the paper shows).
+#
+# Nothing here pools with constraint_sweep/ — one fixed scenario, and a 100 m
+# lattice (see `overrides`).
+# ==========================================================================
+
+scenario_name: ladder_r3
+scenario_seed_base: 1
+
+# The ladder geometry is pinned to a 100 m hex lattice (rows at multiples of
+# 86.6 m; walls 150 m wide; see the preset's comment block). experiments/configs/benchmark is the 150 m
+# lattice, so the lattice and the corridor row count are overridden for EVERY run
+# of this sweep — the reference that anchors U_ref included. corridor_halfwidth_m /
+# corridor_y_max_m are config/main.yaml's values for hex_width_m: 100 (7 rows).
+# The sensor / dead-reckoning model is experiments/configs/benchmark's, unchanged.
+overrides: hex_width_m=100.0,corridor_halfwidth_m=260.0,corridor_y_max_m=300.0
+
+# One scenario, built on purpose — the trivial-straight screen would either pass
+# it or throw the whole sweep away.
+reject_trivial_straight: false
+
+# Full ladder, 10 % steps, no early stop: a rung where every planner fails is a
+# row of grey cells in the figure, which is information, not wasted compute.
+pct_start: 100
+pct_step: 10
+pct_floor: 30
+pct_patience: 0
+method_patience: 0
+
+# CONSORT only (the paper's Fig. 2 shows no baselines), with the comm / landmark
+# event tracking the figure's overlays need. The A* budget is experiments/configs/benchmark's 1e6.
+methods: hexspline_cl@algorithms=hexspline_cl,num_agents=2,track_comm_events=true,track_landmark_events=true
+
+# The per-rung main_ctrls.csv IS the deliverable; each rung's own figures are kept
+# for inspection (40 rungs of PNGs is nothing).
+save_csv: true
+save_figures: true
+
+# ~17-45 s per rung on a Ryzen 5 5600X; ~4 min for the whole ladder.
+workers: 1
+heap_hint_gb: 4
+run_timeout_s: 1800
+
+outroot: results/new/fig2_ladder

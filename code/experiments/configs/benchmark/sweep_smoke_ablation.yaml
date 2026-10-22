@@ -1,0 +1,207 @@
+# SMOKE TEST: identical to sweep_ablation.yaml except n_scenarios: 2 and workers: 1.
+# Checks that the ablation harness runs end to end; it does not reproduce the paper's numbers.
+# ==========================================================================
+# ABLATION sweep — what each STAGE of the hexspline_cl pipeline contributes.
+#   hexspline_cl   discrete joint A* seed + continuous B-spline refinement
+#   straight_cont  straight-line seed + the SAME refinement (isolates the seed)
+#   discrete_only  the A* seed, shipped without refinement
+# Its own figure; NOT pooled with the baseline sweep in sweep.yaml.
+#
+# reject_trivial_straight MUST stay false here — see the note on it below. The
+# screen conditions on straight_cont's own outcome, which is the quantity this
+# sweep reports, and would pin its success rate to 0 by construction.
+#   julia run_constraint_sweep.jl --sweep experiments/configs/benchmark/sweep_ablation.yaml --tag ablation_<date>
+# ==========================================================================
+# ==========================================================================
+# Constraint-sweep knobs — read ONLY by run_constraint_sweep.jl
+# ==========================================================================
+# Never merged into any planner's CFG: load_config merges main.yaml plus
+# <algorithm>.yaml, and no algorithm is called "sweep". The planner-facing
+# base config is the rest of experiments/configs/benchmark/.
+#
+# The experiment, per random scenario:
+#   1. run the REFERENCE  — hexspline_cl, 1 agent, no uncertainty constraint.
+#      Gives L_ref (the shortest path) and U_ref (the uncertainty of that path's
+#      DISCRETE seed — the stage unc_radius_threshold actually gates; the
+#      refined value is logged beside it as U_ref_cont).
+#   2. walk the constraint down: unc_radius_threshold = pct/100 * U_ref
+#   3. at each level run every method; record primary_length / L_ref
+# ==========================================================================
+
+# How many USABLE scenarios, and the seed they are drawn from. A scenario is
+# fully reproducible from its seed: scenario_seed_base + i.
+#
+# n_scenarios counts scenarios whose REFERENCE run succeeded — the sweep keeps
+# drawing until it has that many. A failed reference yields no L_ref/U_ref, so
+# nothing can be normalised against it and the scenario is dead weight; counting
+# it toward the total silently shrank the sample (sweep 2026-08-10_18-17-16 asked
+# for 50 and measured 42). Rejected draws are still recorded in scenarios.csv
+# with empty L_ref/U_ref, so a resume skips them instead of retrying.
+n_scenarios: 2
+scenario_seed_base: 1067
+# Runaway guard for that loop: if references keep failing, stop here rather than
+# drawing forever. Hit only when the geometry ranges make most scenarios
+# unsolvable, which is itself the thing worth knowing.
+# 200 -> 300: with reject_trivial_straight ON, ~27% of draws are discarded (the
+# measured trivial rate on sweep 2026-08-12_13-51-20), so reaching n_scenarios walks
+# ~1.4x further down the seed sequence.
+max_scenario_draws: 300
+
+# ── Trivial-scenario screen ──────────────────────────────────────────────────
+# Reject a drawn scenario when the straight-line continuous planner ALREADY meets
+# the loosest rung of the ladder (pct_start). Such a scenario poses no
+# localization problem at its top rung: every method scores a free pass, and the
+# pct=100 row measures nothing. Measured on sweep 2026-08-12_13-51-20, 8 of 30
+# scenarios (27%) were trivial in exactly this sense, and straight_cont's own
+# 8/30 success at pct=100 IS that count.
+#
+# OFF by default, and the default matters:
+#   BASELINE comparisons (hexspline_cl vs sequential/greedy/formation/clgbt) want
+#     this ON. The claim under test is "coordinated planning beats decomposed
+#     planning", which is only meaningful where coordination is needed at all;
+#     scenarios the straight line solves dilute every mean toward 1.0 and cost
+#     wall clock to prove nothing.
+#   ABLATIONS (hexspline_cl vs straight_cont vs discrete_only) want this OFF, and
+#     must keep it off. They measure what each STAGE of the pipeline contributes,
+#     so the population has to be the unconditioned draw — screening on
+#     straight_cont's outcome conditions the sample on the very quantity the
+#     ablation reports, and would pin its success rate to 0 by construction.
+# Flipping this changes which scenarios exist, so screened and unscreened sweeps
+# are not comparable and must not be pooled.
+#
+# Cost: one extra ~18 s subprocess per DRAW (recorded under <sweep>/screen/<sid>/).
+# Rejected draws keep their scenarios.csv row — L_ref/U_ref intact, with
+# reject_reason=trivial_straight — so the rejection is auditable and a resume
+# skips it instead of re-running it. They do not count toward n_scenarios, so the
+# sweep simply draws further down the seed sequence to reach it; budget more draws
+# via max_scenario_draws accordingly (~1.4x at the 27% rate above).
+#
+# Leaving straight_cont in `methods` while this is ON is redundant but harmless:
+# every surviving scenario is one it just failed, so its rows come back 0/n.
+# ON as of 2026-08-13: this file is now the BASELINE comparison (hexspline_cl vs
+# sequential/greedy/formation/clgbt), which is exactly the case the reasoning above
+# says wants the screen. The two ablations that need it OFF moved to
+# sweep_ablation.yaml. Screened and unscreened sweeps are NOT comparable — in
+# particular nothing here pools with constraint_sweep/2026-08-12_13-51-20_RECOVERED.
+reject_trivial_straight: false
+# The screen itself, in the same label@key=value grammar as `methods`. Points at a
+# planner and the config overrides it runs under; only its success/failure is read.
+reject_trivial_spec: straight_cont@algorithms=straight_cont,num_agents=2
+
+# Random scenario ranges (see generate_scenario in src/planner/scenario_generation.jl).
+# goal_dist drives cost hardest: hex columns grow linearly with it, the graph
+# build is O(n^3) in node count, and the joint A* state space is worse.
+# The draw is over whole hex columns inside [min, max] — the goal has to sit on a
+# cell centre, or the discrete A* certifies its uncertainty at the goal CELL while
+# the shipped spline runs on to the true goal. So these bound the range; the step
+# is hex_width_m and is not configurable.
+# 600-800 m = 6, 7 or 8 hex columns. Capped at 800 because hexspline_cl's joint
+# A* stopped finding solutions inside its budget past ~900 m (sweep
+# 2026-08-07_15-46-03: every s004/s005 run at D=1000-1100 exhausted 1e6
+# expansions and reported IMPOSSIBLE for thresholds that were provably feasible).
+# The long scenarios belong in the paper's hand-built set, run without a budget.
+#
+# 800 -> 900, because the step is hex_width_m and that went 100 -> 150. At 150 the
+# range [600, 800] admits only k = 4, 5 — i.e. D in {600, 750} — so EVERY scenario
+# in the sweep was one of two lengths, against three at the old 100 m step. 900
+# restores k = 4, 5, 6 = {600, 750, 900}. The ~900 m ceiling above was measured at
+# hex_width_m: 100, where D=900 cost 792+ heading-states; at 150 that same D is 432
+# (the figure quoted in experiments/configs/benchmark/main.yaml's own coarsening note, which already
+# anticipates D=900), i.e. a joint space ~3.4x smaller than the one that ceiling
+# was found on. Watch the D=900 rows: if they cap disproportionately, this is the
+# knob that moves.
+goal_dist_min: 600.0
+goal_dist_max: 900.0
+# >= 2: with a single landmark there is nowhere useful to detour TO, so the whole
+# feasible band collapses. Sweep 2026-08-07_15-46-03 s003 had one landmark and
+# 1.5% of range between the straight line and the best anyone achieved — a 10%
+# ladder steps clean over it and measures nothing.
+n_landmarks_min: 2
+n_landmarks_max: 4
+# Capped at 3: extra obstacles do not create decisions, they create
+# infeasibility. Sweep 2026-08-07_15-46-03 s001 drew 7 and no route survived the
+# spline-vs-obstacle check, so the reference run failed and the scenario was
+# discarded after paying ~19 s for it. Obstacle placement is biased toward the
+# direct line (see random_convex_obstacles), so a handful is enough to make the
+# corridor an actual left-or-right decision most of the time.
+n_obstacles_min: 1
+n_obstacles_max: 3
+
+# Constraint ladder. pct_patience stops a scenario after that many CONSECUTIVE
+# levels at which every method failed — the levels that trigger the stop are
+# still run and still logged, so the failure tail is never silently truncated.
+# Set 0 to always walk the full ladder.
+pct_start: 100
+pct_step: 10
+# Floor at 30, not 50: the interesting number is where each method finally gives
+# out, and pct_patience already stops a scenario two levels after everything
+# fails — so a deeper floor costs nothing on the easy scenarios and buys
+# resolution on the hard ones. Levels above the binding point are cheap anyway
+# (a slack constraint is found in ~900 A* expansions, ~21 s); they flatten the
+# top of the curve, which is the honest shape.
+pct_floor: 30
+pct_patience: 1
+# Per-METHOD early stop: after this many CONSECUTIVE failures, a method stops
+# being retried at stricter levels for that scenario, even while other methods
+# keep succeeding. 0 disables it. The skipped levels are recorded as
+# `not_run_after_fail` rather than omitted, so denominators stay the full
+# scenario count (same reasoning as not_run_below_stop below).
+#
+# This rests on success being monotone in the constraint, which is ALMOST true:
+# measured on sweep 2026-08-10_18-17-16, only 2 of 210 method×scenario pairs
+# (~1%) recovered at a stricter level after failing at a looser one — greedy
+# s019 (80% → 55%) and formation s021 (95% → 85%), both `recovery_failed`, never
+# the discrete search. The mechanism is real, not noise: the threshold prunes
+# the SEARCH (prune_by_primary_uncertainty), so a tighter bound can return a
+# different, more conservative seed that refines where the looser bound's
+# shorter one did not — and for formation it also re-ranks the slot choice.
+# Set 2 to buy those back at roughly double the failure-tail cost.
+method_patience: 1
+
+# Methods under test: label@key=value,key=value | ...
+# (the same | @ , idiom as the landmarks:/obstacles: encodings). Every key is a
+# config override applied on top of experiments/configs/benchmark/. The label names the output
+# folder and must be unique; `algorithms` must name exactly one planner. A bare
+# name with no @ means "that algorithm at the base config's defaults".
+# Adding a future baseline is a line here — the harness contains no
+# algorithm-specific logic whatsoever.
+# BASELINE COMPARISON, 5 methods. straight_cont / discrete_only are ABLATIONS of
+# hexspline_cl itself, not competing planners; they moved to sweep_ablation.yaml so
+# they can keep reject_trivial_straight OFF (screening on straight_cont's own outcome
+# would pin its success rate to 0 by construction) and get their own figure.
+methods: hexspline_cl@algorithms=hexspline_cl,num_agents=2 | straight_cont@algorithms=straight_cont,num_agents=2 | discrete_only@algorithms=discrete_only,num_agents=2
+# other baselines, ready to uncomment (append with a leading `|` on the line above):
+#   discrete_only@algorithms=discrete_only,num_agents=2
+#   straight_line@algorithms=straight_line,num_agents=2
+#   hexspline_1@algorithms=hexspline_cl,num_agents=1
+
+# Debugging: keep the per-run figures / CSVs for every scenario at every
+# constraint level, under <sweep>/<label>/<scenario>_p<pct>/. Off by default —
+# a 20-scenario sweep is several hundred runs and thousands of PNGs.
+save_figures: false
+save_csv: false
+
+# Hard wall-clock kill per subprocess. A killed run is recorded as a
+# fail_reason of `timeout`, not silently dropped.
+run_timeout_s: 1200
+
+# Methods within one constraint level run concurrently (levels stay sequential
+# because the early stop depends on their outcome), so the useful ceiling is
+# the number of methods (7). Each subprocess is a single-threaded, CPU-bound
+# Julia process; set to the physical core count of the machine this is run on
+# (6-core/12-thread AMD Ryzen 5 5600X, 32GB RAM here) rather than the thread
+# count, to avoid oversubscription contention on numerical work. Re-tune this
+# on a different machine.
+# 6 -> 4, tracking `methods` dropping from 7 to 5 (the two ablations moved to their
+# own sweep) and leaving headroom for the one hexspline_cl run in each level, which
+# is the only memory-hungry subprocess.
+workers: 1
+
+# GC heap hint passed to every planner subprocess (see run_one). The joint A* frees
+# nothing until it returns, so this is what keeps a capped hexspline_cl run from
+# climbing until the machine dies. Measured after the Phase-1 pruning work: ~1.8 GB
+# at 300k expansions, so a 1e6 cap lands near 6 GB. Keep workers * heap_hint_gb below
+# total RAM (30 GB here, ~18 GB typically free).
+heap_hint_gb: 4
+
+outroot: results/new/constraint_sweep

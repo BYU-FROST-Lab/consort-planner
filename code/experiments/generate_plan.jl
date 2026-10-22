@@ -1,0 +1,77 @@
+ENV["GKSwstype"] = "100"  # headless GR: savefig writes to disk, no window pops up
+using Plots
+using DataStructures
+using LinearAlgebra
+using Statistics
+using Random
+using Dates
+
+Random.seed!(42)  # Reproducible jittered grid sampling
+
+const _ROOT = dirname(@__DIR__)
+include(joinpath(_ROOT, "src", "planner", "config.jl"))
+include(joinpath(_ROOT, "src", "planner", "obstacles.jl"))
+include(joinpath(_ROOT, "src", "planner", "minvo.jl"))
+include(joinpath(_ROOT, "src", "planner", "graph.jl"))
+# Must follow obstacles.jl (build_obstacle) + graph.jl (Landmark): it builds the
+# active scenario and materializes `const OBSTACLES` from it.
+include(joinpath(_ROOT, "src", "planner", "scenario_generation.jl"))
+include(joinpath(_ROOT, "src", "planner", "covariance.jl"))
+include(joinpath(_ROOT, "src", "planner", "viz.jl"))
+include(joinpath(_ROOT, "src", "planner", "analysis.jl"))
+# Include each engine source once, then any planner that ships its own file on
+# top of an engine. Alias planners with no source of their own (straight_cont,
+# discrete_only) resolve to hexspline_cl.jl, which defines their plan_* entry
+# points too; `greedy` has its own file and is included after the engine it calls.
+for src in unique(vcat(engine_of.(ALGORITHMS), ALGORITHMS))
+    path = joinpath(_ROOT, "src", "planner", "algorithms", "$(src).jl")
+    isfile(path) && include(path)
+end
+
+const OUTPUT_DIR = get(ENV, "OUTPUT_DIR", joinpath(_ROOT, "results", "new", Dates.format(now(), "yyyy-mm-dd_HH-MM-SS")))
+mkpath(OUTPUT_DIR)
+
+# Snapshot only main.yaml + the selected algorithms' own config files — not
+# every *.yaml sitting in config/, so the saved run only documents what
+# actually ran.
+run_config_dir = joinpath(OUTPUT_DIR, "config")
+mkpath(run_config_dir)
+cp(joinpath(_CONFIG_DIR, "main.yaml"), joinpath(run_config_dir, "main.yaml"); force=true)
+for name in unique(vcat(engine_of.(ALGORITHMS), ALGORITHMS))
+    algo_cfg = joinpath(_CONFIG_DIR, "$(name).yaml")
+    isfile(algo_cfg) && cp(algo_cfg, joinpath(run_config_dir, "$(name).yaml"); force=true)
+end
+
+# ── Scenario + graph (shared across every selected planner) ──
+# Landmarks, obstacles and start/goal all come from the one scenario definition
+# in src/planner/scenario_generation.jl (config only names it).
+scenario = ACTIVE_SCENARIO
+landmarks = scenario.landmarks
+START_POS, GOAL_POS = scenario.start, scenario.goal
+println("Landmark scenario: $(LANDMARK_SCENARIO) — $(length(landmarks)) landmarks, " *
+        "$(length(scenario.obstacles)) obstacles, start $(START_POS) → goal $(GOAL_POS)")
+
+# Serialize the exact landmark field (positions + covariances) so the Monte
+# Carlo consistency stage reproduces it without re-seeding the RNG generator.
+# Obstacles go out beside them so a run is fully self-describing: the HoloOcean
+# simulation tester needs the polygons to score collisions, and nothing else
+# writes them.
+write_landmarks_csv(joinpath(OUTPUT_DIR, "scenario_landmarks.csv"), landmarks)
+write_obstacles_csv(joinpath(OUTPUT_DIR, "scenario_obstacles.csv"), scenario.obstacles)
+
+graph = build_hex_graph(landmarks, START_POS, GOAL_POS; hex_r=HEX_RADIUS_M)
+
+# ponytail: eval-only mode — replay a saved (or externally-produced) path CSV, skip planning
+if haskey(ENV, "EVAL_PATHS_CSV")
+    run_path_eval(ENV["EVAL_PATHS_CSV"], landmarks, graph, OUTPUT_DIR)
+    exit()
+end
+
+# ── Run every selected planner, each into its own output subfolder ──
+for algo in ALGORITHMS
+    algo_dir = joinpath(OUTPUT_DIR, algo)
+    mkpath(algo_dir)
+    plan_fn = getfield(Main, Symbol("plan_$(algo)"))
+    solutions = plan_fn(scenario, graph, algo_dir)
+    println("\n[$(algo)] produced $(length(solutions)) solution(s) -> $(algo_dir)")
+end

@@ -1,0 +1,5 @@
+# Python packages for the figure scripts in figures/ and for reading the
+# Monte Carlo logs (sim/plan_io.py). Versions are the ones that rendered the paper.
+matplotlib==3.10.8
+numpy==1.26.4
+scipy==1.15.3

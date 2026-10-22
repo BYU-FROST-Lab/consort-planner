@@ -13,9 +13,8 @@ CONSORT is a centralized planner for the escort problem. A primary agent must re
 
 | Path | Contents |
 |---|---|
+| [`code/`](code/) | The Julia planner (CONSORT and the four baselines), the HoloOcean simulator, the experiment drivers, and the data behind every figure in the paper. See [`code/README.md`](code/README.md) for setup and how to reproduce the results. |
 | [`website/`](website/) | The project page: Astro and Tailwind CSS, deployed to GitHub Pages. See [`website/README.md`](website/README.md). |
-
-The Julia implementation, the 50 benchmark scenarios, and the HoloOcean simulation setup will be added here.
 
 ## Citation
 

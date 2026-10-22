@@ -1,0 +1,27 @@
+result:
+  reached_goal: true
+  goal_distance_m: 4.35238
+  max_penetration_m: 0
+  max_hull_penetration_m: 0
+  first_breach_m: null
+  collision_sensor_hits: 0
+  skipped_waypoints: []
+tracking:
+  rms_cross_track_m: 2.72082
+  max_cross_track_m: 6.75836
+  arc_length_m: 1096.92
+  planned_length_m: 1081.65
+  ticks: 15235
+estimation:
+  terminal_est_error_m: 3.17431
+  rms_est_error_m: 2.95055
+  terminal_unc_m: 1.44009
+  planner_predicted_unc_m: 1.79601
+  unc_ratio_planner_over_sim: 1.24715
+  unc_threshold_m: 1.8
+  comm_events: 3
+  landmark_events: 31
+support_auv1:
+  max_penetration_m: 0
+  rms_cross_track_m: 2.07801
+  skipped_waypoints: []

@@ -1,0 +1,779 @@
+# ==========================================================================
+# Scenario definitions — landmarks + obstacles + start/goal, all in one place
+# ==========================================================================
+# A scenario is a NamedTuple `(landmarks, obstacles, start, goal)`. Every
+# predefined scenario lives in `SCENARIOS` below, NOT in config: config/main.yaml
+# only *names* one via `landmark_scenario:`. The single exception is
+# `landmark_scenario: manual`, which reads the whole geometry out of main.yaml
+# (`start` / `goal` / `landmarks` / `obstacles`) using the same flat string
+# encoding `parse_obstacles` already uses.
+#
+# ── Corridor geometry (see build_hex_graph) ──
+# The hex grid is padded ±260 m about y=0 and rows land on multiples of
+# 1.5·hex_r, so at the default `hex_width_m: 100` the reachable rows are
+#   y ∈ {-433.0, -346.4, -259.8, -173.2, -86.6, 0.0, 86.6, 173.2, 259.8}
+# and x spans start→goal (plus `hex_padding` columns). Two consequences for the
+# geometry below:
+#   * A wall that must BLOCK a route has to cover a whole row. Hex edges are only
+#     sampled at `obstacle_edge_samples` points (2 = endpoints only), so a wall
+#     thinner than the 86.6 m row spacing can be stepped straight over.
+#   * A landmark only helps within `visibility_range` (100 m default) of a row.
+
+function random_landmark_cov(rng)
+    # SPD covariance with randomized anisotropy/correlation.
+    sx = 0.80 + 0.55 * rand(rng)
+    sy = 0.60 + 0.35 * rand(rng)
+    ρ = 0.45 * (2 * rand(rng) - 1)
+    cxy = ρ * sx * sy
+    return [sx^2 cxy; cxy sy^2]
+end
+# The preset SCENARIOS below draw from the global stream that generate_plan.jl
+# seeds with Random.seed!(42); generate_scenario passes its own local RNG so a
+# generated scenario does not depend on what else consumed that stream.
+# default_rng() is exactly what bare rand() uses, so presets are unchanged.
+random_landmark_cov() = random_landmark_cov(Random.default_rng())
+
+# Obstacles are built with `build_obstacle(verts)` — ordered CONVEX polygon
+# vertices, either winding. Pass `Σo=` only when the obstacle's *location* is
+# uncertain; it defaults to zero (exactly known).
+#
+# Scenario table. Each entry is a thunk, not a value: landmark covariances are
+# drawn from the RNG, so they must be sampled when the selected scenario is
+# built (under generate_plan.jl's seed), not at include time for all 8.
+const SCENARIOS = Dict{Symbol, Function}(
+
+    # ── Landmark-layout baselines (no obstacles) ──
+
+    # One landmark, well off the direct line: minimal detour-vs-uncertainty case.
+    :single => () -> (landmarks = Landmark[
+                          Landmark(600.0, -250.0, random_landmark_cov())],
+                      obstacles = Obstacle[                            
+                        build_obstacle([(200.0,60.0), (260.0,60.0), (260.0,-60.0), (200.0,-60.0)])
+                        ],
+                      start = (0.0, 0.0), goal = (1000.0, 0.0)),
+
+    # Two landmarks on opposite sides — the primary must pick a side, or the
+    # support can take the other one.
+    :dual => () -> (landmarks = Landmark[
+                        Landmark(700.0,  200.0, random_landmark_cov() * 1.1),
+                        Landmark(750.0, -250.0, random_landmark_cov())],
+                    # The two obstacles that used to live in config/main.yaml's
+                    # `obstacles:` key: a box left of the corridor mid-point and
+                    # an uncertain-location triangle above it.
+                    obstacles = Obstacle[
+                        build_obstacle([(200.0,-150.0), (260.0,-150.0), (260.0,-100.0), (200.0,-100.0)]),
+                        build_obstacle([(400.0,60.0), (460.0,60.0), (430.0,120.0)];
+                                       Σo = [4.0 0.0; 0.0 4.0])],
+                    start = (0.0, 0.0), goal = (1000.0, 0.0)),
+
+    # Three landmarks in a tight cluster: one detour buys three fixes. This is
+    # the scenario mc_nees.jl's ci-vs-kf gate uses (repeated in-range comms).
+    :clustered => () -> (landmarks = Landmark[
+                             Landmark(680.0, -200.0, random_landmark_cov() * 3),
+                             Landmark(700.0, -210.0, random_landmark_cov() * 3),
+                             Landmark(720.0, -190.0, random_landmark_cov() * 3)],
+                         obstacles = Obstacle[],
+                         start = (0.0, 0.0), goal = (1000.0, 0.0)),
+
+    # Landmarks strung along a "shore": the informative route is a long shallow
+    # arc rather than a single detour.
+    :shoreline => () -> (landmarks = Landmark[
+                             Landmark(100.0, -300.0, random_landmark_cov() * 5),
+                             Landmark(300.0, -270.0, random_landmark_cov() * 5),
+                             Landmark(500.0, -240.0, random_landmark_cov() * 5),
+                             Landmark(700.0, -220.0, random_landmark_cov() * 5),
+                             Landmark(900.0, -200.0, random_landmark_cov() * 5)],
+                         obstacles = Obstacle[],
+                         start = (0.0, 0.0), goal = (1000.0, 0.0)),
+
+    # ── Stress scenarios ──
+
+    # TWO HOMOTOPIES. A long central island (covering rows -86.6…86.6) splits the
+    # corridor into a short blind route (south) and a longer informative one
+    # (north, swinging out to y≈250 for both fixes). Couples obstacle avoidance to
+    # sensing: the south route is only ~1200 m but goes blind, so it never meets
+    # unc_radius_threshold and the northern detour is forced.
+    # Measured: the front collapses to ONE seed — the south homotopy is infeasible
+    # rather than a cheaper trade-off, so this does not exercise a multi-point
+    # Pareto front. Adding a southern landmark to make it feasible was tried and
+    # changed nothing (the collector still returned one seed).
+    :two_routes => () -> (landmarks = Landmark[
+                              Landmark(500.0, 250.0, random_landmark_cov() * 2),
+                              Landmark(760.0, 250.0, random_landmark_cov() * 2)],
+                          obstacles = Obstacle[
+                              build_obstacle([(400.0,-140.0), (800.0,-140.0), (800.0,140.0), (400.0,140.0)])],
+                          start = (0.0, 0.0), goal = (1200.0, 0.0)),
+
+    # GAUNTLET / SLALOM. Three walls alternately hanging from the top and rising
+    # from the bottom force a down-up-down weave; each landmark sits in a gap, so
+    # sensing and threading are coupled. Also the tightest curvature test
+    # (min_turn_radius_m vs. 86.6 m row spacing).
+    :gauntlet => () -> (landmarks = Landmark[
+                            Landmark(350.0, -120.0, random_landmark_cov() * 2),
+                            Landmark(650.0,  150.0, random_landmark_cov() * 2),
+                            Landmark(950.0, -120.0, random_landmark_cov() * 2)],
+                        obstacles = Obstacle[
+                            # hangs down from above the top row ⇒ pass at y ≤ 0
+                            build_obstacle([(200.0,60.0), (260.0,60.0), (260.0,320.0), (200.0,320.0)]),
+                            # rises up from below the bottom row ⇒ pass at y ≥ 86.6
+                            build_obstacle([(500.0,-460.0), (560.0,-460.0), (560.0,40.0), (500.0,40.0)]),
+                            # hangs down ⇒ pass at y ≤ 0 again
+                            build_obstacle([(800.0,60.0), (860.0,60.0), (860.0,320.0), (800.0,320.0)])],
+                        start = (0.0, 0.0), goal = (1200.0, 0.0)),
+
+    # LANDMARK BEHIND A WALL. The only landmark sits below a 500 m-long wall that
+    # covers row -173.2. From the direct route it is ~300 m away (no fix at all);
+    # reaching it means going around either end of the wall and coming back. The
+    # detour is unavoidable if the uncertainty threshold is to be met.
+    # It sits late (x=700) and is a strong fix (unscaled cov) on purpose: one
+    # landmark this far off-route only pays for its detour if little drift is left
+    # afterwards — weaken or move it earlier and the whole scenario goes
+    # infeasible (exhaustive A* finds nothing under unc_radius_threshold).
+    :behind_wall => () -> (landmarks = Landmark[
+                               Landmark(700.0, -300.0, random_landmark_cov())],
+                           obstacles = Obstacle[
+                               build_obstacle([(300.0,-210.0), (700.0,-210.0), (700.0,-130.0), (300.0,-130.0)])],
+                           start = (0.0, 0.0), goal = (1000.0, 0.0)),
+
+    # MAZE. Three full-height walls, each with TWO gaps at different rows, plus
+    # five plugs so no chamber has a straight shot: the corridor becomes a set of
+    # narrow passages instead of open space. Two homotopies survive, each with two
+    # landmarks — north (L1 in A's high gap, L4 in the upper middle chamber) is
+    # shorter; south (L2 in B's low gap, L3 in C's low gap) is a longer weave. That
+    # is the distance-vs-uncertainty trade :two_routes failed to produce (there the
+    # cheap side was infeasible, so the front collapsed to one seed).
+    #
+    # Wall geometry is pinned to the lattice, not eyeballed. At hex_width_m: 100 the
+    # rows are the y values in the header comment, and node x depends on row parity:
+    # rows {-346.4,-173.2,0,173.2} sit at x ≡ 0 (mod 100), rows
+    # {-433,-259.8,-86.6,86.6,259.8} at x ≡ 50. So a vertical wall must span ≥150 m
+    # in x to cover one column of EACH parity — a narrower one is stepped around on
+    # the offset row. All three span 150 m. Gaps are the y-bands left uncovered;
+    # since hex moves never skip a row, covering a row's band blocks it outright.
+    #
+    # Tuning knob: if both routes come out infeasible under unc_radius_threshold
+    # (~1500-1800 m of arc here), drop the landmark scale *2 → *1 for stronger fixes.
+    :maze => () -> (landmarks = Landmark[
+                        Landmark(250.0,  173.2, random_landmark_cov() * 2),  # L1, wall A high gap
+                        Landmark(590.0, -259.8, random_landmark_cov() * 2),  # L2, wall B low gap
+                        Landmark(930.0, -346.4, random_landmark_cov() * 2),  # L3, wall C low gap
+                        Landmark(830.0,  173.2, random_landmark_cov() * 2)], # L4, upper middle chamber
+                    obstacles = Obstacle[
+                        # Wall A, x ∈ [175,325] — gaps at rows 173.2 and -86.6
+                        build_obstacle([(175.0, 216.5), (325.0, 216.5), (325.0, 340.0), (175.0, 340.0)]),
+                        build_obstacle([(175.0, -43.3), (325.0, -43.3), (325.0, 129.9), (175.0, 129.9)]),
+                        build_obstacle([(175.0,-520.0), (325.0,-520.0), (325.0,-129.9), (175.0,-129.9)]),
+                        # Wall B, x ∈ [515,665] — gaps at rows 259.8 and -259.8
+                        build_obstacle([(515.0,-216.5), (665.0,-216.5), (665.0, 216.5), (515.0, 216.5)]),
+                        build_obstacle([(515.0,-520.0), (665.0,-520.0), (665.0,-303.1), (515.0,-303.1)]),
+                        # Wall C, x ∈ [855,1005] — gaps at rows 0 and -346.4
+                        build_obstacle([(855.0,  43.3), (1005.0,  43.3), (1005.0, 340.0), (855.0, 340.0)]),
+                        build_obstacle([(855.0,-303.1), (1005.0,-303.1), (1005.0, -43.3), (855.0, -43.3)]),
+                        build_obstacle([(855.0,-520.0), (1005.0,-520.0), (1005.0,-389.7), (855.0,-389.7)]),
+                        # Chamber plugs: each kills a cell or two (named in the trailing
+                        # comment), forcing a row change mid-chamber rather than sealing
+                        # it. Each is offset ≥1 free column from the wall it follows, so
+                        # a gap always keeps an onward move; if a run comes back with no
+                        # path at all, a plug swallowing its gap's exit is the first
+                        # thing to check.
+                        build_obstacle([(1050.0,-216.5), (1150.0,-216.5), (1150.0,-129.9), (1050.0,-129.9)])], # (1100,-173.2)
+                    start = (0.0, 0.0), goal = (1200.0, 0.0)),
+
+    # LONG SPARSE CORRIDOR. 1400 m with only two landmarks, one per side: long
+    # stretches of pure dead reckoning punctuated by single fixes. A blind
+    # straight line drifts to ~10 (vs `unc_radius_threshold: 7`), so both fixes
+    # are mandatory. Longest corridor that still plans under the default
+    # `astar_iteration_limit: 500000` — the joint state space grows with corridor
+    # length, and at 1800 m A* never reaches the goal at all.
+    :long_sparse => () -> (landmarks = Landmark[
+                               Landmark( 500.0,  230.0, random_landmark_cov() * 2),
+                               Landmark(1050.0, -230.0, random_landmark_cov() * 2)],
+                           obstacles = Obstacle[],
+                           start = (0.0, 0.0), goal = (1400.0, 0.0)),
+
+    # ── Showcase: what a TIGHTENING constraint buys ──────────────────────────
+    # Built to be run as a LADDER (experiments/configs/benchmark/sweep_showcase.yaml), not once: the
+    # point is that the plan changes SHAPE as unc_radius_threshold falls — first
+    # spending the support agent (free, since the objective is PRIMARY length),
+    # then spending primary length, then flipping to the other side of the island.
+    #
+    # ── Two measured facts the geometry is built around ──
+    #
+    # 1. UNCERTAINTY IS ABOUT LATENESS. With no fix, growth_covariance gives
+    #    Q_dir = 0.25 m²/m and Q_perp = 0.0278 m²/m at the experiments/configs/benchmark rates, so
+    #        unc_radius = det(Σ)^0.25 ≈ 0.2887 · sqrt(distance since the last fix).
+    #    Measured, not asserted: the 1-agent unconstrained reference over 1950 m
+    #    reported 12.632 against 0.2887·sqrt(1950) = 12.75. A perfect fix 500 m
+    #    from the goal still lands at ~6.5, so a landmark's worth is dominated by
+    #    how LATE it is. The first cut of this scenario spread strong landmarks
+    #    from x=300 to x=1500 and had no headroom below the 5.578 an unconstrained
+    #    2-agent plan already reached (probe showcase_probe/probe1: p100 and p70
+    #    returned the identical plan; p40 found nothing in 300k expansions).
+    #    Everything that matters therefore lives in the last third.
+    #
+    # 2. LATERAL DEPTH IS WHAT COSTS, NOT LATERAL TIME. On this lattice every
+    #    monotone route is the same length: a diagonal advances x by 75 against a
+    #    forward step's 150, so a k-row excursion and its return burn exactly k
+    #    extra steps = 150k m — no matter how long the agent RIDES that row. So
+    #    the primary can sit on row ±129.9 for 600 m for the same 150 m it pays to
+    #    touch it once. The ladder's rungs are therefore built from EXCURSION
+    #    DEPTH (0 / 150 / 300 m), not from distance travelled off-axis.
+    #
+    # ── The rungs ──
+    #   M  (1050,  340) north, mid. Free: the island already puts the primary on
+    #                   row +129.9, from which a support on row +259.8 is in comm.
+    #   A  (1500, -340) south, late. Support on row -259.8; an on-axis primary is
+    #                   259.8 m away, i.e. still in comm — and the primary is back
+    #                   on the axis by then anyway. Costs the PRIMARY nothing; only
+    #                   the SUPPORT's path changes. This is the multi-agent rung.
+    #   B  (1650, -420) south, latest. Support must sit on row -389.7, which is out
+    #                   of comm with an on-axis primary, so the primary has to come
+    #                   down to row -129.9 — after having gone north for the island.
+    #                   Both excursions, +300 m. The fix lands 150 m from the goal.
+    #   L0 ( 300,  200) early and weak. Not a rung: it keeps the first third from
+    #                   being pure dead reckoning, so the top of the ladder is a
+    #                   plan rather than a straight line.
+    # Tightest rungs take A AND B, which is a different plan again from B alone.
+    #
+    # LANDMARK ORDER IS LOAD-BEARING: lms[1].cov is Σ₀ for every agent
+    # (graph.jl:231, covariance.jl:351). B is listed FIRST so the start prior is
+    # ~0.95 m; putting weak L0 there would inflate it ~3x and change the whole
+    # problem. Covariances are explicit literals rather than random_landmark_cov()*k
+    # — the rungs' RELATIVE strength is the tuning knob here, and a random base is
+    # one variable too many.
+    #
+    # Geometry is pinned to the hex_width_m: 150 lattice (experiments/configs/benchmark), NOT the 100 m
+    # default: rows land on multiples of 129.9 and corridor_y_max_m: 440 keeps
+    # y ∈ {0, ±129.9, ±259.8, ±389.7}. Row x-parity alternates — rows {0, ±259.8}
+    # at x ≡ 0 (mod 150), rows {±129.9, ±389.7} at x ≡ 75 — so a wall must span
+    # ≥ 225 m in x to cover a column of EACH parity (same rule as :maze); both
+    # below span 240-300 m. Run it at hex_width_m: 100 and the row pitch becomes
+    # 86.6, the walls stop lining up with the rows they are meant to block and the
+    # scenario means nothing. It is a experiments/configs/benchmark scenario.
+    :showcase => () -> (landmarks = Landmark[
+                            Landmark(1650.0, -420.0, [1.0 0.0; 0.0 0.8]),   # B, latest (also Σ₀)
+                            Landmark(1500.0, -340.0, [1.5 0.0; 0.0 1.2]),   # A, support-only rung
+                            Landmark(1050.0,  340.0, [3.0 0.0; 0.0 2.4]),   # M, free on the north pass
+                            Landmark( 300.0,  200.0, [8.0 0.0; 0.0 6.4])],  # L0, early freebie
+                        obstacles = Obstacle[
+                            # Island: covers rows 0 and -129.9 over x ∈ [800,1100]
+                            # (row-0 cells 900/1050, row -129.9 cells 825/975), so the
+                            # corridor splits into a CHEAP north pass at +129.9 (+150 m)
+                            # and a DEAR south pass at -259.8 (+300 m). 65 m of clearance
+                            # to each. All the information is south, so this is the
+                            # homotopy decision the tight rungs have to make.
+                            build_obstacle([(800.0,-195.0), (1100.0,-195.0), (1100.0,65.0), (800.0,65.0)]),
+                            # Guard: covers row -259.8 over x ∈ [1200,1440] (cells
+                            # 1200/1350). The south pass has to climb to row -129.9 and
+                            # drop back to reach A's support slot at (1500,-259.8), which
+                            # is what keeps the southern homotopy dearer than the northern
+                            # one rather than merely different.
+                            build_obstacle([(1200.0,-325.0), (1440.0,-325.0), (1440.0,-195.0), (1200.0,-195.0)])],
+                        start = (0.0, 0.0), goal = (1800.0, 0.0)),
+
+    # ── Ladder maze: Fig. 2 constraint ladder, MANY obstacles ────────────────
+    # Built for experiments/configs/benchmark/sweep_fig2.yaml (one scenario, every planner, walked down
+    # the constraint ladder). Three full-height walls with two gaps each plus six
+    # plugs that seal the pockets nobody should route through: 14 obstacles. The
+    # corridor splits into a BLIND north lane (rows +1 → +2, 1500 m on the lattice,
+    # no landmark within visibility) and an INFORMATIVE south lane (rows −1 → −2
+    # → −3, all three landmarks) that needs the walls' lower gaps and ends 100 m
+    # short of the goal's x for anyone who wants the last landmark.
+    #
+    # The ladder this produces (hexspline_cl, 2 agents, measured 2026-09-07):
+    #   100–70 %  primary 1500 (north, blind); support A(−1) B(−2) sees L1 only,
+    #             climbs back into comm range → primary σ ≈ 7.6–8.8
+    #    60–30 %  primary 1600 (north + one wiggle before the goal, which buys the
+    #             support one more step); support completes the south sweep
+    #             (L1, L2, L3) and relays at the goal → primary σ ≈ 3.1
+    # greedy holds the blind 1500 m route and passes only at 100 %; formation,
+    # sequential and CL-GBT find nothing the harness accepts at any rung (see
+    # paper/new_draft/figures/figure2/README.md).
+    #
+    # GEOMETRY IS PINNED TO hex_width_m: 100 (rows 0, ±86.6, ±173.2, ±259.8 with
+    # corridor_y_max_m: 300; row parity: rows 0/±173.2 at x ≡ 0 (mod 100), rows
+    # ±86.6/±259.8 at x ≡ 50). It is NOT a experiments/configs/benchmark (150 m) scenario — sweep_fig2
+    # overrides the lattice. Rules the layout obeys, learned from the seed gate
+    # (seed_spline_clear, the committed-face MINVO hull): a wall is 150 m wide so
+    # it covers a cell of each parity; gap faces sit 60 m off the gap row's centre
+    # (the blocked neighbour row's cell is still 26.6 m inside); and a lane change
+    # may land no closer than ~100 m before a wall's near face and must be preceded
+    # by one straight cell after its far face — a diagonal that lands at a face puts
+    # the segment's MINVO hull across the block's corner and the gate rejects it.
+    # Plugs sit only in cells no shipped route uses.
+    #
+    # LANDMARK ORDER IS LOAD-BEARING: lms[1].cov is Σ₀. L3 (latest, strongest) first.
+    :ladder_maze => () -> (landmarks = Landmark[
+                              Landmark(1350.0, -233.0, [1.0 0.0; 0.0 0.8]),   # L3: seen from row −2 at x 1300/1400 (also Σ₀)
+                              Landmark(1050.0, -320.0, [1.5 0.0; 0.0 1.2]),   # L2: wall C's row −3 gap
+                              Landmark( 650.0, -240.0, [2.0 0.0; 0.0 1.6])],  # L1: wall B's row −2 gap
+                          obstacles = Obstacle[
+                              # Wall A, x ∈ [200,350] — gaps at rows +1 and −1
+                              build_obstacle([(200.0, 146.6), (350.0, 146.6), (350.0, 330.0), (200.0, 330.0)]),
+                              build_obstacle([(200.0, -26.6), (350.0, -26.6), (350.0, 26.6), (200.0, 26.6)]),
+                              build_obstacle([(200.0,-330.0), (350.0,-330.0), (350.0,-146.6), (200.0,-146.6)]),
+                              # Wall B, x ∈ [600,750] — gaps at rows +1 and −2
+                              build_obstacle([(600.0, 146.6), (750.0, 146.6), (750.0, 330.0), (600.0, 330.0)]),
+                              build_obstacle([(600.0,-113.2), (750.0,-113.2), (750.0, 26.6), (600.0, 26.6)]),
+                              build_obstacle([(600.0,-330.0), (750.0,-330.0), (750.0,-233.2), (600.0,-233.2)]),
+                              # Wall C, x ∈ [1000,1150] — gaps at rows +2 and −3
+                              build_obstacle([(1000.0, 233.2), (1150.0, 233.2), (1150.0, 330.0), (1000.0, 330.0)]),
+                              build_obstacle([(1000.0,-199.8), (1150.0,-199.8), (1150.0, 113.2), (1000.0, 113.2)]),
+                              # Plugs (row 0 and the ±3 pockets of chambers A–B, B–C, and the
+                              # +3 pocket before the goal). Each seals cells no shipped route uses.
+                              build_obstacle([(375.0, -26.6), (525.0, -26.6), (525.0, 26.6), (375.0, 26.6)]),
+                              build_obstacle([(425.0, 233.2), (575.0, 233.2), (575.0, 330.0), (425.0, 330.0)]),
+                              build_obstacle([(425.0,-330.0), (575.0,-330.0), (575.0,-233.2), (425.0,-233.2)]),
+                              build_obstacle([(775.0, -26.6), (925.0, -26.6), (925.0, 26.6), (775.0, 26.6)]),
+                              build_obstacle([(800.0, 233.2), (900.0, 233.2), (900.0, 330.0), (800.0, 330.0)]),
+                              build_obstacle([(1200.0, 233.2), (1400.0, 233.2), (1400.0, 330.0), (1200.0, 330.0)])],
+                          start = (0.0, 0.0), goal = (1400.0, 173.20508075688772)),
+
+    # ── Ladder shapes: Fig. 2 candidate 2 — varied convex shapes, FOUR rungs ──────
+    # Same skeleton as :ladder_maze (three gapped walls, plugs, blind north lane,
+    # informative south lane) drawn with houses, hexagons and trapezoids instead of
+    # rectangles, on a 1700 m corridor, and with the landmarks graded so that each
+    # extra 100 m of primary length unlocks exactly one more option for the support:
+    #   N=18 (1800, blind north lane)  support visits the NORTH POCKET landmark L1
+    #        from (550, 259.8) and rejoins — a weak, early relay (σ ≈ 9.7)
+    #   N=18, tighter                  support takes the south lane to L2 at wall C's
+    #        row −3 gap and can only relay at half weight from ~300 m (σ ≈ 8.9)
+    #   N=19 (1900)                    primary wiggles once; support relays L2 (and a
+    #        w≈0.09 glimpse of the weak L3) from (1600, 0) (σ ≈ 6.7–7.3)
+    #   N=20 (2000)                    primary detours down to row 0 before the goal;
+    #        support sees L3 from (1700, −173.2) and relays from (1750, −86.6) (σ ≈ 3.9)
+    # Measured 2026-09-07 (paper/new_draft/figures/figure2/README.md, v14): the
+    # 100/70/50/30 % columns are four different plans. L3 is deliberately WEAK
+    # (cov 4): with cov 1 the N=19 glimpse at comm weight 0.09 already gave σ 3.5
+    # and the fourth rung vanished. L1 is weak (cov 6) so the pocket plan lands above
+    # the 70 % rung instead of exactly on it (cov 3–3.5 put it at 9.605 vs 9.606).
+    #
+    # Lattice: hex_width_m 100 (see :ladder_maze for the seed-gate rules every block
+    # obeys; the slanted faces are extra clearance, never less). Row +3 pocket in
+    # chamber A–B is deliberately left OPEN (no plug) — that is where L1 sits.
+    # LANDMARK ORDER IS LOAD-BEARING: lms[1].cov is Σ₀ — L3 first, so Σ₀ is 4.0/3.2.
+    :ladder_shapes => () -> (landmarks = Landmark[
+                                Landmark(1750.0, -233.0, [4.0 0.0; 0.0 3.2]),   # L3: weak, seen from (1700,−173.2) / (1750,−259.8); also Σ₀
+                                Landmark(1250.0, -320.0, [1.0 0.0; 0.0 0.8]),   # L2: wall C's row −3 gap
+                                Landmark( 550.0,  300.0, [6.0 0.0; 0.0 4.8])],  # L1: north pocket, seen from (550, 259.8) only
+                            obstacles = Obstacle[
+                                # Wall A, x ∈ [200,350] — gaps at rows +1 and −1: house / stretched hexagon / inverted house
+                                build_obstacle([(200.0, 146.6), (350.0, 146.6), (350.0, 300.0), (275.0, 330.0), (200.0, 300.0)]),
+                                build_obstacle([(185.0, 0.0), (215.0, -26.6), (335.0, -26.6), (365.0, 0.0), (335.0, 26.6), (215.0, 26.6)]),
+                                build_obstacle([(200.0,-300.0), (275.0,-330.0), (350.0,-300.0), (350.0,-146.6), (200.0,-146.6)]),
+                                # Wall B, x ∈ [800,950] — gaps at rows +1 and −2: trapezoid / pointed hexagon / trapezoid
+                                build_obstacle([(800.0, 146.6), (950.0, 146.6), (915.0, 330.0), (835.0, 330.0)]),
+                                build_obstacle([(800.0,-113.2), (950.0,-113.2), (975.0, -43.3), (950.0, 26.6), (800.0, 26.6), (775.0, -43.3)]),
+                                build_obstacle([(800.0,-330.0), (950.0,-330.0), (925.0,-233.2), (825.0,-233.2)]),
+                                # Wall C, x ∈ [1200,1350] — gaps at rows +2 and −3: trapezoid / big hexagon
+                                build_obstacle([(1225.0, 233.2), (1325.0, 233.2), (1350.0, 330.0), (1200.0, 330.0)]),
+                                build_obstacle([(1200.0, 113.2), (1350.0, 113.2), (1380.0, -43.3), (1350.0,-199.8), (1200.0,-199.8), (1170.0, -43.3)]),
+                                # Plugs: row 0 of chamber A–B (hexagon), its row −3 pocket (inverted house),
+                                # row 0 of chamber B–C (hexagon), its row +3 pocket (house), row +3 before the goal (trapezoid)
+                                build_obstacle([(360.0, 0.0), (390.0, -26.6), (710.0, -26.6), (740.0, 0.0), (710.0, 26.6), (390.0, 26.6)]),
+                                build_obstacle([(425.0,-330.0), (775.0,-330.0), (775.0,-300.0), (740.0,-233.2), (460.0,-233.2), (425.0,-300.0)]),
+                                build_obstacle([(960.0, 0.0), (990.0, -26.6), (1110.0, -26.6), (1140.0, 0.0), (1110.0, 26.6), (990.0, 26.6)]),
+                                build_obstacle([(1000.0, 233.2), (1200.0, 233.2), (1200.0, 300.0), (1150.0, 330.0), (1050.0, 330.0), (1000.0, 300.0)]),
+                                build_obstacle([(1400.0, 233.2), (1700.0, 233.2), (1680.0, 330.0), (1420.0, 330.0)])],
+                            start = (0.0, 0.0), goal = (1700.0, 173.20508075688772)),
+
+    # ── Ladder long: Fig. 2 candidate 3 — 2350 m, four walls, varied shapes ─────────
+    # The :ladder_shapes skeleton stretched to four walls (A [200,350] gaps +1/−1,
+    # B [800,950] +1/−2, C [1300,1450] +2/−3, D [1800,1950] +2/−2), goal on row +1 at
+    # (2350, 86.6), 18 obstacles. Blind north lane: rows +1 → +2 → +1, 3 diagonals,
+    # 2500 m on the lattice (U_ref 16.2). South lane: −1 → −2 → −3 (L2 at wall C's
+    # row −3 gap) → −2 through D → optional dip back to row −3 for L3 behind D.
+    # A weak north-pocket landmark L1 sits above chamber A–B.
+    #
+    # Run with primary_epsilon 0.25 (experiments/configs/benchmark/sweep_fig2_long.yaml), as the
+    # showcase ladder was: at ε = 0 the +100 m rung needs ~850k expansions and the
+    # +200 m rung is out of reach, so the ladder collapses to three plans; at 0.25
+    # every rung is found in < 100k and the plan changes SHAPE at four levels
+    # (measured 2026-09-07, paper/new_draft/figures/figure2/README.md, v15e):
+    #   100–70 %  2500 lattice / 2388 spline, σ 10.2 — primary north, support sweeps
+    #             the south lane and relays from row −2 behind D
+    #    60 %     2500 / 2421, σ 8.8  — same length, different support timing
+    #    50–40 %  2600 / 2414, σ 8.1–6.5 — primary dips toward row 0 before the goal
+    #    30 %     2700 / 2570, σ 3.7  — primary dips to row −2 next to L3 and climbs back
+    # The seeds are up to 25 % suboptimal in length by construction; this preset is
+    # for the qualitative ladder figure, not a length benchmark.
+    #
+    # Rules as :ladder_maze (100 m lattice, seed-gate geometry). Two extra lessons:
+    # a landmark within ~250 m of the primary's lane is NOT hidden — even at detection
+    # probability 0.01 the up-weighted observation still shrinks U_ref by 20 % (that
+    # is why the only pocket landmark sits off a row-+1 stretch, 213 m away); and a
+    # support relaying a fresh fix at comm weight 0.05–0.09 (350 m) still halves the
+    # primary's σ, so "out of comm range" is never a hard wall. lms[1] is Σ₀.
+    :ladder_long => () -> (landmarks = Landmark[
+                              Landmark(2250.0, -320.0, [2.0 0.0; 0.0 1.6]),   # L3: behind D, seen from (2250,−259.8); also Σ₀
+                              Landmark(1250.0, -320.0, [1.0 0.0; 0.0 0.8]),   # L2: wall C's row −3 gap
+                              Landmark( 550.0,  300.0, [3.0 0.0; 0.0 2.4])],  # L1: north pocket above chamber A–B
+                          obstacles = Obstacle[
+                              # Wall A, x ∈ [200,350] — gaps +1/−1: house / stretched hexagon / inverted house
+                              build_obstacle([(200.0, 146.6), (350.0, 146.6), (350.0, 300.0), (275.0, 330.0), (200.0, 300.0)]),
+                              build_obstacle([(185.0, 0.0), (215.0, -26.6), (335.0, -26.6), (365.0, 0.0), (335.0, 26.6), (215.0, 26.6)]),
+                              build_obstacle([(200.0,-300.0), (275.0,-330.0), (350.0,-300.0), (350.0,-146.6), (200.0,-146.6)]),
+                              # Wall B, x ∈ [800,950] — gaps +1/−2: trapezoid / pointed hexagon / trapezoid
+                              build_obstacle([(800.0, 146.6), (950.0, 146.6), (915.0, 330.0), (835.0, 330.0)]),
+                              build_obstacle([(800.0,-113.2), (950.0,-113.2), (975.0, -43.3), (950.0, 26.6), (800.0, 26.6), (775.0, -43.3)]),
+                              build_obstacle([(800.0,-330.0), (950.0,-330.0), (925.0,-233.2), (825.0,-233.2)]),
+                              # Wall C, x ∈ [1300,1450] — gaps +2/−3: trapezoid / big hexagon
+                              build_obstacle([(1325.0, 233.2), (1425.0, 233.2), (1450.0, 330.0), (1300.0, 330.0)]),
+                              build_obstacle([(1300.0, 113.2), (1450.0, 113.2), (1480.0, -43.3), (1450.0,-199.8), (1300.0,-199.8), (1270.0, -43.3)]),
+                              # Wall D, x ∈ [1800,1950] — gaps +2/−2: trapezoid / pointed hexagon (rows +1,0,−1) / trapezoid (row −3)
+                              build_obstacle([(1825.0, 233.2), (1925.0, 233.2), (1950.0, 330.0), (1800.0, 330.0)]),
+                              build_obstacle([(1800.0,-113.2), (1950.0,-113.2), (1980.0, 0.0), (1950.0, 113.2), (1800.0, 113.2), (1770.0, 0.0)]),
+                              build_obstacle([(1800.0,-330.0), (1950.0,-330.0), (1925.0,-233.2), (1825.0,-233.2)]),
+                              # Plugs: row 0 A–B (hexagon), row −3 A–B (inverted house), row 0 B–C (hexagon),
+                              # row +3 B–C (house), rows 0/−1 C–D (hexagon), row +3 C–D (house), row +3 after D (trapezoid)
+                              build_obstacle([(360.0, 0.0), (390.0, -26.6), (710.0, -26.6), (740.0, 0.0), (710.0, 26.6), (390.0, 26.6)]),
+                              build_obstacle([(425.0,-330.0), (775.0,-330.0), (775.0,-300.0), (740.0,-233.2), (460.0,-233.2), (425.0,-300.0)]),
+                              build_obstacle([(960.0, 0.0), (990.0, -26.6), (1210.0, -26.6), (1240.0, 0.0), (1210.0, 26.6), (990.0, 26.6)]),
+                              build_obstacle([(1000.0, 233.2), (1300.0, 233.2), (1300.0, 300.0), (1250.0, 330.0), (1050.0, 330.0), (1000.0, 300.0)]),
+                              build_obstacle([(1460.0, -43.3), (1490.0,-113.2), (1710.0,-113.2), (1740.0, -43.3), (1710.0, 26.6), (1490.0, 26.6)]),
+                              build_obstacle([(1500.0, 233.2), (1800.0, 233.2), (1800.0, 300.0), (1750.0, 330.0), (1550.0, 330.0), (1500.0, 300.0)]),
+                              build_obstacle([(2000.0, 233.2), (2350.0, 233.2), (2330.0, 330.0), (2020.0, 330.0)])],
+                          start = (0.0, 0.0), goal = (2350.0, 86.60254037844386)),
+    # ── Fig. 2 rectangular-maze candidates (2026-09-10) ─────────────────────
+    # Five re-drawings of the Fig. 2 ladder scenario as a maze of RECTANGLES
+    # (150 m walls with gaps, 53 m row plugs) with a few non-rectangular
+    # obstacles scattered in cells no shipped route uses. All on the 100 m
+    # lattice of experiments/configs/benchmark/sweep_fig2.yaml (rows at multiples of 86.6 m, gap
+    # faces 60 m off a row centre, one straight cell before and after every
+    # wall for a lane change — see :ladder_maze). Generated by
+    # paper/new_draft/figures/figure2/tools/gen_rect_presets.py; landmark order is load-bearing (lms[1] is Σ₀).
+    # ── ladder_r1: the :ladder_shapes skeleton (gaps +1/−1, +1/−2, +2/−3) in rectangles
+    :ladder_r1 => () -> (landmarks = Landmark[
+                              Landmark(1750.0, -233.0, [4.0 0.0; 0.0 3.2]),
+                              Landmark(1250.0, -320.0, [1.0 0.0; 0.0 0.8]),
+                              Landmark(550.0, 300.0, [6.0 0.0; 0.0 4.8])],
+                          obstacles = Obstacle[
+                              build_obstacle([(200.0,146.6), (350.0,146.6), (350.0,330.0), (200.0,330.0)]),
+                              build_obstacle([(200.0,-26.6), (350.0,-26.6), (350.0,26.6), (200.0,26.6)]),
+                              build_obstacle([(200.0,-330.0), (350.0,-330.0), (350.0,-146.6), (200.0,-146.6)]),
+                              build_obstacle([(800.0,146.6), (950.0,146.6), (950.0,330.0), (800.0,330.0)]),
+                              build_obstacle([(800.0,-113.2), (950.0,-113.2), (950.0,26.6), (800.0,26.6)]),
+                              build_obstacle([(800.0,-330.0), (950.0,-330.0), (950.0,-233.2), (800.0,-233.2)]),
+                              build_obstacle([(1200.0,233.2), (1350.0,233.2), (1350.0,330.0), (1200.0,330.0)]),
+                              build_obstacle([(1200.0,-199.8), (1350.0,-199.8), (1350.0,113.2), (1200.0,113.2)]),
+                              build_obstacle([(1200.0,-330.0), (1350.0,-330.0), (1350.0,-319.8), (1200.0,-319.8)]),
+                              build_obstacle([(375.0,-26.6), (725.0,-26.6), (725.0,26.6), (375.0,26.6)]),
+                              build_obstacle([(425.0,-330.0), (775.0,-330.0), (775.0,-233.2), (425.0,-233.2)]),
+                              build_obstacle([(975.0,-26.6), (1125.0,-26.6), (1125.0,26.6), (975.0,26.6)]),
+                              build_obstacle([(1400.0,233.2), (1700.0,233.2), (1700.0,330.0), (1400.0,330.0)]),
+                              build_obstacle([(360.0,233.2), (440.0,233.2), (440.0,300.0), (400.0,330.0), (360.0,300.0)]),
+                              build_obstacle([(1000.0,-85.0), (1020.0,-110.0), (1080.0,-110.0), (1100.0,-85.0), (1080.0,-60.0), (1020.0,-60.0)]),
+                              build_obstacle([(1000.0,233.2), (1200.0,233.2), (1200.0,300.0), (1100.0,330.0), (1000.0,300.0)]),
+                              build_obstacle([(60.0,-233.2), (140.0,-233.2), (140.0,-300.0), (100.0,-330.0), (60.0,-300.0)])],
+                          start = (0.0, 0.0), goal = (1700.0, 173.2050)),
+    # ── ladder_r2: south lane dives −1 → −3 before B and rides row −3 under a row −2 bar (gaps +1/−1, +1/−3, +2/−3)
+    :ladder_r2 => () -> (landmarks = Landmark[
+                              Landmark(1750.0, -233.0, [4.0 0.0; 0.0 3.2]),
+                              Landmark(1250.0, -320.0, [1.0 0.0; 0.0 0.8]),
+                              Landmark(550.0, 300.0, [6.0 0.0; 0.0 4.8])],
+                          obstacles = Obstacle[
+                              build_obstacle([(200.0,146.6), (350.0,146.6), (350.0,330.0), (200.0,330.0)]),
+                              build_obstacle([(200.0,-26.6), (350.0,-26.6), (350.0,26.6), (200.0,26.6)]),
+                              build_obstacle([(200.0,-330.0), (350.0,-330.0), (350.0,-146.6), (200.0,-146.6)]),
+                              build_obstacle([(750.0,146.6), (900.0,146.6), (900.0,330.0), (750.0,330.0)]),
+                              build_obstacle([(750.0,-199.8), (900.0,-199.8), (900.0,26.6), (750.0,26.6)]),
+                              build_obstacle([(750.0,-330.0), (900.0,-330.0), (900.0,-319.8), (750.0,-319.8)]),
+                              build_obstacle([(1200.0,233.2), (1350.0,233.2), (1350.0,330.0), (1200.0,330.0)]),
+                              build_obstacle([(1200.0,-199.8), (1350.0,-199.8), (1350.0,113.2), (1200.0,113.2)]),
+                              build_obstacle([(1200.0,-330.0), (1350.0,-330.0), (1350.0,-319.8), (1200.0,-319.8)]),
+                              build_obstacle([(375.0,-330.0), (440.0,-330.0), (440.0,-233.2), (375.0,-233.2)]),
+                              build_obstacle([(375.0,-26.6), (675.0,-26.6), (675.0,26.6), (375.0,26.6)]),
+                              build_obstacle([(950.0,-26.6), (1150.0,-26.6), (1150.0,26.6), (950.0,26.6)]),
+                              build_obstacle([(975.0,-199.8), (1150.0,-199.8), (1150.0,-146.6), (975.0,-146.6)]),
+                              build_obstacle([(1400.0,233.2), (1700.0,233.2), (1700.0,330.0), (1400.0,330.0)]),
+                              build_obstacle([(360.0,233.2), (440.0,233.2), (440.0,300.0), (400.0,330.0), (360.0,300.0)]),
+                              build_obstacle([(1000.0,-85.0), (1020.0,-110.0), (1080.0,-110.0), (1100.0,-85.0), (1080.0,-60.0), (1020.0,-60.0)]),
+                              build_obstacle([(1000.0,233.2), (1200.0,233.2), (1200.0,300.0), (1100.0,330.0), (1000.0,300.0)]),
+                              build_obstacle([(60.0,-233.2), (140.0,-233.2), (140.0,-300.0), (100.0,-330.0), (60.0,-300.0)])],
+                          start = (0.0, 0.0), goal = (1700.0, 173.2050)),
+    # ── ladder_r3: R1 gap rows with the wall blocks staggered in x
+    :ladder_r3 => () -> (landmarks = Landmark[
+                              Landmark(1750.0, -233.0, [4.0 0.0; 0.0 3.2]),
+                              Landmark(1250.0, -320.0, [1.0 0.0; 0.0 0.8]),
+                              Landmark(550.0, 300.0, [6.0 0.0; 0.0 4.8])],
+                          obstacles = Obstacle[
+                              build_obstacle([(250.0,146.6), (400.0,146.6), (400.0,330.0), (250.0,330.0)]),
+                              build_obstacle([(200.0,-26.6), (550.0,-26.6), (550.0,26.6), (200.0,26.6)]),
+                              build_obstacle([(400.0,-330.0), (550.0,-330.0), (550.0,-146.6), (400.0,-146.6)]),
+                              build_obstacle([(800.0,146.6), (950.0,146.6), (950.0,330.0), (800.0,330.0)]),
+                              build_obstacle([(800.0,-113.2), (950.0,-113.2), (950.0,26.6), (800.0,26.6)]),
+                              build_obstacle([(650.0,-330.0), (800.0,-330.0), (800.0,-233.2), (650.0,-233.2)]),
+                              build_obstacle([(1200.0,233.2), (1350.0,233.2), (1350.0,330.0), (1200.0,330.0)]),
+                              build_obstacle([(1150.0,-199.8), (1350.0,-199.8), (1350.0,113.2), (1150.0,113.2)]),
+                              build_obstacle([(975.0,-26.6), (1125.0,-26.6), (1125.0,26.6), (975.0,26.6)]),
+                              build_obstacle([(1400.0,233.2), (1700.0,233.2), (1680.0,330.0), (1420.0,330.0)]),
+                              build_obstacle([(60.0,233.2), (140.0,233.2), (140.0,300.0), (100.0,330.0), (60.0,300.0)]),
+                              build_obstacle([(1000.0,-85.0), (1020.0,-110.0), (1080.0,-110.0), (1100.0,-85.0), (1080.0,-60.0), (1020.0,-60.0)]),
+                              build_obstacle([(1000.0,233.2), (1200.0,233.2), (1200.0,300.0), (1100.0,330.0), (1000.0,300.0)]),
+                              build_obstacle([(60.0,-233.2), (140.0,-233.2), (140.0,-300.0), (100.0,-330.0), (60.0,-300.0)])],
+                          start = (0.0, 0.0), goal = (1700.0, 173.2050)),
+    # ── ladder_r4: both lanes weave (+2/−1, +1/−2, +2/−3), wall A at 300; early south landmark, no pocket
+    :ladder_r4 => () -> (landmarks = Landmark[
+                              Landmark(1750.0, -233.0, [4.0 0.0; 0.0 3.2]),
+                              Landmark(1250.0, -320.0, [1.0 0.0; 0.0 0.8]),
+                              Landmark(375.0, -150.0, [6.0 0.0; 0.0 4.8])],
+                          obstacles = Obstacle[
+                              build_obstacle([(300.0,233.2), (450.0,233.2), (450.0,330.0), (300.0,330.0)]),
+                              build_obstacle([(300.0,-26.6), (450.0,-26.6), (450.0,113.2), (300.0,113.2)]),
+                              build_obstacle([(300.0,-330.0), (450.0,-330.0), (450.0,-146.6), (300.0,-146.6)]),
+                              build_obstacle([(750.0,146.6), (900.0,146.6), (900.0,330.0), (750.0,330.0)]),
+                              build_obstacle([(750.0,-113.2), (900.0,-113.2), (900.0,26.6), (750.0,26.6)]),
+                              build_obstacle([(750.0,-330.0), (900.0,-330.0), (900.0,-233.2), (750.0,-233.2)]),
+                              build_obstacle([(1200.0,233.2), (1350.0,233.2), (1350.0,330.0), (1200.0,330.0)]),
+                              build_obstacle([(1200.0,-199.8), (1350.0,-199.8), (1350.0,113.2), (1200.0,113.2)]),
+                              build_obstacle([(1200.0,-330.0), (1350.0,-330.0), (1350.0,-319.8), (1200.0,-319.8)]),
+                              build_obstacle([(475.0,-26.6), (700.0,-26.6), (700.0,26.6), (475.0,26.6)]),
+                              build_obstacle([(500.0,233.2), (700.0,233.2), (700.0,330.0), (500.0,330.0)]),
+                              build_obstacle([(475.0,-330.0), (700.0,-330.0), (700.0,-233.2), (475.0,-233.2)]),
+                              build_obstacle([(950.0,-26.6), (1150.0,-26.6), (1150.0,26.6), (950.0,26.6)]),
+                              build_obstacle([(1000.0,233.2), (1200.0,233.2), (1200.0,300.0), (1100.0,330.0), (1000.0,300.0)]),
+                              build_obstacle([(1000.0,-85.0), (1020.0,-110.0), (1080.0,-110.0), (1100.0,-85.0), (1080.0,-60.0), (1020.0,-60.0)]),
+                              build_obstacle([(1400.0,233.2), (1700.0,233.2), (1700.0,330.0), (1400.0,330.0)]),
+                              build_obstacle([(240.0,60.0), (275.0,60.0), (275.0,113.2), (240.0,113.2)]),
+                              build_obstacle([(700.0,146.6), (725.0,146.6), (725.0,199.8), (700.0,199.8)]),
+                              build_obstacle([(1165.0,60.0), (1195.0,60.0), (1195.0,113.2), (1165.0,113.2)]),
+                              build_obstacle([(60.0,-233.2), (140.0,-233.2), (140.0,-300.0), (100.0,-330.0), (60.0,-300.0)])],
+                          start = (0.0, 0.0), goal = (1700.0, 173.2050)),
+    # ── ladder_r5: R2 mirrored: informative lane north, goal on row −2
+    :ladder_r5 => () -> (landmarks = Landmark[
+                              Landmark(1750.0, 233.0, [4.0 0.0; 0.0 3.2]),
+                              Landmark(1250.0, 320.0, [1.0 0.0; 0.0 0.8]),
+                              Landmark(550.0, -300.0, [6.0 0.0; 0.0 4.8])],
+                          obstacles = Obstacle[
+                              build_obstacle([(200.0,-330.0), (350.0,-330.0), (350.0,-146.6), (200.0,-146.6)]),
+                              build_obstacle([(200.0,-26.6), (350.0,-26.6), (350.0,26.6), (200.0,26.6)]),
+                              build_obstacle([(200.0,146.6), (350.0,146.6), (350.0,330.0), (200.0,330.0)]),
+                              build_obstacle([(750.0,-330.0), (900.0,-330.0), (900.0,-146.6), (750.0,-146.6)]),
+                              build_obstacle([(750.0,-26.6), (900.0,-26.6), (900.0,199.8), (750.0,199.8)]),
+                              build_obstacle([(750.0,319.8), (900.0,319.8), (900.0,330.0), (750.0,330.0)]),
+                              build_obstacle([(1200.0,-330.0), (1350.0,-330.0), (1350.0,-233.2), (1200.0,-233.2)]),
+                              build_obstacle([(1200.0,-113.2), (1350.0,-113.2), (1350.0,199.8), (1200.0,199.8)]),
+                              build_obstacle([(1200.0,319.8), (1350.0,319.8), (1350.0,330.0), (1200.0,330.0)]),
+                              build_obstacle([(375.0,233.2), (440.0,233.2), (440.0,330.0), (375.0,330.0)]),
+                              build_obstacle([(375.0,-26.6), (675.0,-26.6), (675.0,26.6), (375.0,26.6)]),
+                              build_obstacle([(950.0,-26.6), (1150.0,-26.6), (1150.0,26.6), (950.0,26.6)]),
+                              build_obstacle([(975.0,146.6), (1150.0,146.6), (1150.0,199.8), (975.0,199.8)]),
+                              build_obstacle([(1400.0,-330.0), (1700.0,-330.0), (1700.0,-233.2), (1400.0,-233.2)]),
+                              build_obstacle([(360.0,-300.0), (400.0,-330.0), (440.0,-300.0), (440.0,-233.2), (360.0,-233.2)]),
+                              build_obstacle([(1020.0,60.0), (1080.0,60.0), (1100.0,85.0), (1080.0,110.0), (1020.0,110.0), (1000.0,85.0)]),
+                              build_obstacle([(1000.0,-300.0), (1100.0,-330.0), (1200.0,-300.0), (1200.0,-233.2), (1000.0,-233.2)]),
+                              build_obstacle([(60.0,300.0), (100.0,330.0), (140.0,300.0), (140.0,233.2), (60.0,233.2)])],
+                          start = (0.0, 0.0), goal = (1700.0, -173.2050)),
+)
+
+# ── Manual scenario: geometry read straight from config/main.yaml ──
+
+# "x,y" → tuple.
+function parse_xy(str::AbstractString, what::String)
+    v = parse.(Float64, strip.(split(strip(str), ',')))
+    length(v) == 2 || error("$what needs 'x,y', got '$str'")
+    return (v[1], v[2])
+end
+
+# Flat landmark encoding, mirroring parse_obstacles:
+#   "x,y [@ sxx,sxy,syx,syy] | x,y | ..."
+# landmarks sep by '|', optional per-landmark covariance after '@' (4 numbers,
+# row-major); omitted ⇒ random_landmark_cov(). Empty string ⇒ no landmarks.
+function parse_landmarks(str::AbstractString)
+    lms = Landmark[]
+    s = strip(str)
+    isempty(s) && return lms
+    for spec in split(s, '|')
+        spec = strip(spec)
+        isempty(spec) && continue
+        geom = spec
+        cov = random_landmark_cov()
+        if occursin('@', spec)
+            geom, cov_spec = split(spec, '@'; limit=2)
+            c = parse.(Float64, strip.(split(strip(cov_spec), ',')))
+            length(c) == 4 || error("landmark cov needs 4 numbers (sxx,sxy,syx,syy), got $(length(c))")
+            cov = [c[1] c[2]; c[3] c[4]]
+        end
+        x, y = parse_xy(geom, "landmark")
+        push!(lms, Landmark(x, y, cov))
+    end
+    return lms
+end
+
+function manual_scenario()
+    for k in ("start", "goal")
+        haskey(CFG, k) || error("`landmark_scenario: manual` needs a `$k:` key (\"x,y\") in config/main.yaml")
+    end
+    return (landmarks = parse_landmarks(String(get(CFG, "landmarks", ""))),
+            obstacles = parse_obstacles(String(get(CFG, "obstacles", ""))),
+            start = parse_xy(String(CFG["start"]), "start"),
+            goal  = parse_xy(String(CFG["goal"]),  "goal"))
+end
+
+# ── Random scenario generation (`landmark_scenario: random`) ──
+# A corridor scenario drawn from four numbers, for statistical benchmarking
+# (run_constraint_sweep.jl) rather than the hand-tuned presets above.
+#
+# Every draw comes from a LOCAL RNG seeded by `seed`, never the global stream,
+# so a scenario is reproducible from (seed, goal_dist, n_landmarks,
+# n_obstacles) alone — independent of generate_plan.jl's hardcoded
+# Random.seed!(42) and of whatever else consumed that stream first.
+
+# n convex obstacles (3–6 sides) in the corridor, non-overlapping and clear of
+# both endpoints. Convexity is GUARANTEED, not hoped for: `build_obstacle`
+# errors on a non-convex or degenerate polygon, so vertices are placed at
+# evenly-spaced angles on a rotated ellipse with jitter strictly under half the
+# angular spacing. Points taken in angular order on a convex curve are always
+# convex, and the jitter bound keeps any two vertices apart (a zero-length edge
+# is also a `build_obstacle` error).
+#
+# The semi-axis ranges are deliberately wide: a barrier spanning less than
+# ~150 m does not cover both hex column parities and gets stepped around
+# trivially (see the corridor-geometry note at the top of this file), so some
+# obstacles have to be big enough to actually redirect a route.
+#
+# ponytail: near-duplicate of `gen_obstacles` in test_obstacle_robustness.jl.
+# That one is rectangles-only and hardcodes the 0→1000 corridor, and its RNG
+# stream pins that harness's reproducible output — generalizing it would move
+# every obstacle it has ever placed, so it is deliberately left alone.
+function random_convex_obstacles(n::Int, rng, goal_x::Float64)
+    obs   = Obstacle[]
+    boxes = NTuple{4,Float64}[]           # placed AABBs, for the overlap test
+    tries = 0
+    while length(obs) < n && tries < 20000
+        tries += 1
+        k  = rand(rng, 3:6)               # triangle … hexagon
+        a  = 25.0 + 85.0 * rand(rng)      # semi-axes, polygon-local
+        b  = 20.0 + 40.0 * rand(rng)
+        φ  = 2π * rand(rng)               # rotation, so long axis can lie either way
+        cx = goal_x * (0.12 + 0.76 * rand(rng))
+        # Triangular on [-240, 240] (difference of two uniforms), peaked on the
+        # direct start→goal line instead of flat across the corridor. An obstacle
+        # sitting ON the line is the case worth sampling: getting past it is a
+        # left-or-right choice, and a local optimizer seeded with the straight
+        # line cannot cross to the other side once it has picked. Flat placement
+        # produced that by luck in roughly a third of scenarios; this makes it
+        # ~60%, without capping the range or special-casing any scenario.
+        cy = 240.0 * (rand(rng) - rand(rng))
+
+        # Clear of start and goal. Centre distance against the circumradius is
+        # conservative (the polygon is inscribed in the a×b ellipse).
+        r_out = max(a, b)
+        (hypot(cx, cy) < 90.0 + r_out || hypot(cx - goal_x, cy) < 90.0 + r_out) && continue
+
+        step  = 2π / k
+        verts = Tuple{Float64,Float64}[]
+        for i in 0:k-1
+            θ = i * step + (0.7 * step) * (rand(rng) - 0.5)   # |jitter| < 0.35·step
+            px = a * cos(θ); py = b * sin(θ)
+            push!(verts, (cx + px * cos(φ) - py * sin(φ),
+                          cy + px * sin(φ) + py * cos(φ)))
+        end
+
+        xs = first.(verts); ys = last.(verts)
+        box = (minimum(xs), minimum(ys), maximum(xs), maximum(ys))
+        any(r -> !(box[3] + 12.0 < r[1] || box[1] - 12.0 > r[3] ||
+                   box[4] + 12.0 < r[2] || box[2] - 12.0 > r[4]), boxes) && continue
+
+        push!(obs, build_obstacle(verts))
+        push!(boxes, box)
+    end
+    length(obs) == n || @warn "placed only $(length(obs))/$n obstacles (corridor saturated)"
+    return obs
+end
+
+# ── The landmark band, DERIVED from the sensor model rather than hardcoded ───
+# This used to be a literal 200.0 + 120.0 carrying a comment saying it was really
+# a function of visibility_range/comm_range and had to be retuned by hand if
+# those moved. They just moved, so it is computed now and cannot fall out of
+# sync.
+#
+# The band is aimed at the gap between what the two planner families can reach
+# laterally from the direct line:
+#
+#   formation  : formation_slot() places its support at exactly HEX_WIDTH_M, so
+#                its reach is hex_width + visibility_range and does NOT grow with
+#                comm_range. At the defaults: 100 + 100 = 200 m.
+#   joint search: free to put the support anywhere still in comm, i.e. two hexes
+#                out while comm_range = 2*hex_width. Reach 2*100 + 100 = 300 m.
+#
+# Landmarks land in (200, 380]: a joint search can service the near half with the
+# primary still on the line, while a one-hex formation must drag the primary out
+# for every one of them — and after the alternating-sides draw below, that cost
+# recurs at every landmark instead of once per scenario.
+#
+# Inside hex_width + visibility_range the fix is free to everybody and measures
+# nothing, which is the failure the old 200 m inner edge was written to fix
+# (sweep 2026-08-07_16-46-28: straight_cont held ratio 1.0000 from p100 to p30
+# because it never had to move). The +30 keeps that guarantee with margin.
+const LM_BAND_INNER = HEX_WIDTH_M + VISIBILITY_RANGE + 30.0
+const LM_BAND_SPAN  = 150.0
+
+function generate_scenario(; seed::Int, goal_dist::Real,
+                             n_landmarks::Int, n_obstacles::Int)
+    # build_hex_graph indexes sensor_landmarks[1] unconditionally, and landmark
+    # 1's covariance is Σ₀ for every agent — an empty field is a BoundsError,
+    # not an easy scenario.
+    n_landmarks >= 1 || error("generate_scenario needs n_landmarks >= 1, got $(n_landmarks)")
+    rng = Random.MersenneTwister(seed)
+    D   = Float64(goal_dist)
+
+    # Landmarks are pushed OFF the direct start→goal line on purpose: that is
+    # what makes a fix cost a detour, which is the whole trade-off under test.
+    #
+    # The band itself is LM_BAND_INNER/LM_BAND_SPAN above, derived from the sensor
+    # model — see there for why it sits where it does. The free-ride it exists to
+    # prevent: a landmark inside hex_width + visibility_range is seen without
+    # anyone leaving the straight path, and measures nothing (sweep
+    # 2026-08-07_16-46-28: straight_cont held ratio 1.0000 from p100 to p30).
+    # Sides ALTERNATE along x, rather than being an independent coin per landmark.
+    # An i.i.d. coin put every landmark on the SAME side in 29.1% of scenarios
+    # (measured over 6000 draws, results/scenario_generation/). That is a free pass
+    # for any baseline that commits to one support side for the whole route — the
+    # formation planner picks a single body-frame slot up front, so on a one-sided
+    # field it is optimal by construction and can never be caught out. Alternating
+    # makes the useful side flip mid-route, which a slot chosen once cannot track
+    # but a joint search can. Sorted by x because "alternating" is only meaningful
+    # in ROUTE order; the opening side is still a coin, so neither side is favoured.
+    #
+    # This reorders the rng stream, so every seed now yields different geometry:
+    # sweeps recorded before this change are not comparable to ones after it.
+    xs = sort!([D * (0.12 + 0.76 * rand(rng)) for _ in 1:n_landmarks])
+    side = rand(rng) < 0.5 ? -1.0 : 1.0
+    lms = Landmark[]
+    for x in xs
+        push!(lms, Landmark(x, side * (LM_BAND_INNER + LM_BAND_SPAN * rand(rng)),
+                            random_landmark_cov(rng)))
+        side = -side
+    end
+
+    return (landmarks = lms,
+            obstacles = random_convex_obstacles(n_obstacles, rng, D),
+            start = (0.0, 0.0), goal = (D, 0.0))
+end
+
+function build_scenario(name::Symbol)
+    sc = if name === :random
+        generate_scenario(seed        = Int(CFG["scenario_seed"]),
+                          goal_dist   = Float64(CFG["scenario_goal_dist"]),
+                          n_landmarks = Int(CFG["scenario_n_landmarks"]),
+                          n_obstacles = Int(CFG["scenario_n_obstacles"]))
+    elseif name === :manual
+        manual_scenario()
+    elseif haskey(SCENARIOS, name)
+        SCENARIOS[name]()
+    else
+        error("Unknown landmark_scenario: $name. Known: " *
+              join(sort(string.(keys(SCENARIOS))), ", ") * ", manual, random.")
+    end
+    # ENV override, used by test_obstacle_robustness.jl / check_true_collisions.jl
+    # to sweep generated obstacle fields over a scenario without editing config.
+    haskey(ENV, "OBSTACLES") && (sc = merge(sc, (obstacles = parse_obstacles(ENV["OBSTACLES"]),)))
+    return sc
+end
+
+const ACTIVE_SCENARIO = build_scenario(LANDMARK_SCENARIO)
+# The obstacle field every stage reads (discrete A* filter, MINVO continuous
+# constraint, viz). Materialized here rather than in obstacles.jl because
+# geometry belongs to the scenario, not to config.
+const OBSTACLES = ACTIVE_SCENARIO.obstacles
