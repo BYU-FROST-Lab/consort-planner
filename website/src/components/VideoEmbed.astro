@@ -16,6 +16,7 @@ const { id, title } = Astro.props;
   {
     id ? (
       <iframe
+        data-video
         src={`https://www.youtube-nocookie.com/embed/${id}?rel=0`}
         title={title}
         loading="lazy"
@@ -46,3 +47,19 @@ const { id, title } = Astro.props;
     )
   }
 </div>
+
+<script>
+  // Links marked data-video-seek="<seconds>" start the embedded video there
+  // instead of leaving for YouTube.
+  document.addEventListener('click', (e) => {
+    const link = (e.target as Element).closest<HTMLAnchorElement>('a[data-video-seek]');
+    const frame = document.querySelector<HTMLIFrameElement>('iframe[data-video]');
+    if (!link || !frame) return;
+    e.preventDefault();
+    const url = new URL(frame.src);
+    url.searchParams.set('start', link.dataset.videoSeek ?? '0');
+    url.searchParams.set('autoplay', '1');
+    frame.src = url.toString();
+    frame.closest('section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+</script>

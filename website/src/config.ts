@@ -45,11 +45,14 @@ export const affiliations = ['Brigham Young University', 'University of Utah'];
 export const arxivId: string | undefined = undefined;
 
 /**
- * TODO: the YouTube video ID (the part after `watch?v=`). It fills the video
- * section under the hero, which shows a "coming soon" frame until then, and
- * enables the Video button.
+ * The YouTube video ID (the part after `watch?v=` or `youtu.be/`). It fills the
+ * video section under the hero and the Video button; unset, the section shows
+ * a "coming soon" frame.
  */
-export const youtubeId: string | undefined = undefined;
+export const youtubeId: string | undefined = 'prarYmi_3y4';
+
+/** Where the video's planning-stages animation starts, in seconds (linked from Method). */
+export const videoPlanningStart = 59;
 
 /**
  * Optional looping hero video, e.g. 'videos/hero.mp4' for a file in
