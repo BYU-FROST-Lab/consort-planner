@@ -30,13 +30,13 @@ export interface Author {
 /** In paper order. */
 export const authors: Author[] = [
   { name: 'Tony Zhang', url: 'https://www.linkedin.com/in/tony-hu-zhang', affiliations: [1, 2] },
-  { name: 'Ryan Bartholomew', url: 'https://sites.google.com/view/ryan-m-bartholomew', affiliations: [2] },
-  { name: 'Kalliyan Velasco', url: 'https://frostlab.byu.edu/people/kalliyan-velasco/', affiliations: [2] },
-  { name: 'Joshua Mangelson', url: 'https://frostlab.byu.edu/people/josh-mangelson/', affiliations: [2] },
-  { name: 'Brady Moon', url: 'https://frostlab.byu.edu/people/brady-moon/', affiliations: [2] },
+  { name: 'Ryan Bartholomew', url: 'https://sites.google.com/view/ryan-m-bartholomew', affiliations: [1] },
+  { name: 'Kalliyan Velasco', url: 'https://frostlab.byu.edu/people/kalliyan-velasco/', affiliations: [1] },
+  { name: 'Joshua Mangelson', url: 'https://frostlab.byu.edu/people/josh-mangelson/', affiliations: [1] },
+  { name: 'Brady Moon', url: 'https://frostlab.byu.edu/people/brady-moon/', affiliations: [1] },
 ];
 
-export const affiliations = ['University of Utah', 'Brigham Young University'];
+export const affiliations = ['Brigham Young University', 'University of Utah'];
 
 /**
  * TODO before publishing: the preprint's arXiv ID, e.g. '2610.01234'. The
