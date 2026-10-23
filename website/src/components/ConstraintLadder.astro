@@ -1,8 +1,7 @@
 ---
 /**
  * The paper's Fig. 2 as an interactive replay of the planner's own runs
- * (src/data/constraint-ladder.json, built by scripts/export_ladder.py from
- * code/results/paper/ladder).
+ * (src/data/constraint-ladder.json, exported from code/results/paper/ladder).
  *
  * Fig. 2's planner propagates covariance and schedules exchanges along each
  * agent's waypoint path (the B-spline's control polygon), so the replay runs on
@@ -227,15 +226,13 @@ const meta = { model, pathStep, levels: levels.map((l) => ({ ...l, delta: delta(
     delta: string;
     primary: Plan;
     support: Plan;
-    /** The planner's checkpoints as [waypoint arc, comm weight], from scripts/export_ladder.py. */
+    /** The planner's checkpoints as [waypoint arc, comm weight]. */
     exchanges: [number, number][];
     end: number;
   }
   interface Model {
-    comm_interval: number;
     comm_range: number;
     comm_width: number;
-    comm_weight_min: number;
     visibility_range: number;
     visibility_width: number;
   }

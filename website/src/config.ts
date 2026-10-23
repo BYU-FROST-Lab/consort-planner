@@ -1,7 +1,6 @@
 /**
  * Everything that names the paper, its authors, or a link lives here.
- * Fields marked TODO are placeholders until the paper is public; the build
- * prints a warning for each one still unset (see src/lib/placeholders.ts).
+ * Fields marked TODO are placeholders until the paper is public.
  */
 
 export const project = {
@@ -20,11 +19,9 @@ export const project = {
 
 export interface Author {
   name: string;
-  url?: string;
+  url: string;
   /** 1-based indices into `affiliations`. */
   affiliations: number[];
-  /** Marks equal contribution with an asterisk. */
-  equal?: boolean;
 }
 
 /** In paper order. */
@@ -44,22 +41,11 @@ export const affiliations = ['Brigham Young University', 'University of Utah'];
  */
 export const arxivId: string | undefined = undefined;
 
-/**
- * The YouTube video ID (the part after `watch?v=` or `youtu.be/`). It fills the
- * video section under the hero and the Video button; unset, the section shows
- * a "coming soon" frame.
- */
-export const youtubeId: string | undefined = 'prarYmi_3y4';
+/** The YouTube video ID (the part after `youtu.be/`), embedded under the hero and behind the Video button. */
+export const youtubeId = 'prarYmi_3y4';
 
 /** Where the video's planning-stages animation starts, in seconds (linked from Method). */
 export const videoPlanningStart = 59;
-
-/**
- * Optional looping hero video, e.g. 'videos/hero.mp4' for a file in
- * public/videos/. It replaces the HoloOcean still behind the title. Keep it
- * short, muted, and under ~2 MB: it is committed to the repo.
- */
-export const heroVideo: string | undefined = undefined;
 
 /** BibTeX fields. Until `booktitle` is set, the entry is arXiv's @misc format. */
 export const publication = {
@@ -79,11 +65,10 @@ export const links = {
   paper: arxivId && `https://arxiv.org/pdf/${arxivId}`,
   arxiv: arxivId && `https://arxiv.org/abs/${arxivId}`,
   code: repoUrl,
-  video: youtubeId && `https://youtu.be/${youtubeId}`,
+  video: `https://youtu.be/${youtubeId}`,
 };
 
 export const lab = {
   name: 'FROST Lab',
-  fullName: 'Field Robotic Systems Lab',
   url: 'https://frostlab.byu.edu',
 };

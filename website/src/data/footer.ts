@@ -1,20 +1,20 @@
 import type { IconName } from '../components/Icon.astro';
+import { lab } from '../config';
 
 // The FROST Lab site's footer links (footerData in src/navigation.ts of the
 // byu-frost-lab.github.io repo), with its site-relative links made absolute.
 // Keep the two in sync.
-const lab = 'https://frostlab.byu.edu';
 
 export const footerColumns: { title: string; links: { text: string; href: string }[] }[] = [
   {
     title: 'FROST Lab Links',
     links: [
-      { text: 'People', href: `${lab}/people/` },
-      { text: 'Research', href: `${lab}/research/` },
-      { text: 'Publications', href: `${lab}/publications/` },
-      { text: 'Robots', href: `${lab}/robots/` },
-      { text: 'Facilities', href: `${lab}/facilities/` },
-      { text: 'Get Involved', href: `${lab}/get-involved/` },
+      { text: 'People', href: `${lab.url}/people/` },
+      { text: 'Research', href: `${lab.url}/research/` },
+      { text: 'Publications', href: `${lab.url}/publications/` },
+      { text: 'Robots', href: `${lab.url}/robots/` },
+      { text: 'Facilities', href: `${lab.url}/facilities/` },
+      { text: 'Get Involved', href: `${lab.url}/get-involved/` },
     ],
   },
   {

@@ -8,23 +8,14 @@ import '../styles/global.css';
 import { getImage } from 'astro:assets';
 import holoocean from '../assets/figures/fig7-holoocean.webp';
 import Analytics from '../components/Analytics.astro';
-import { authors, project, publication } from '../config';
-import { url } from '../lib/url';
+import { authors, project } from '../config';
 
 const canonical = new URL(Astro.url.pathname, Astro.site).href;
+// Files in public/ are served under the site's base path.
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 // Link previews get a 1200x630 crop of the HoloOcean render, generated at build time.
 const og = await getImage({ src: holoocean, width: 1200, height: 630, fit: 'cover', format: 'jpg', quality: 80 });
 const ogImage = new URL(og.src, Astro.site).href;
-const jsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'ScholarlyArticle',
-  headline: project.title,
-  description: project.description,
-  author: authors.map((a) => ({ '@type': 'Person', name: a.name, ...(a.url && { url: a.url }) })),
-  datePublished: String(publication.year),
-  image: ogImage,
-  url: canonical,
-};
 ---
 
 <!doctype html>
@@ -38,9 +29,9 @@ const jsonLd = {
     <meta name="theme-color" content="#07131d" />
     <link rel="canonical" href={canonical} />
     <!-- The FROST Lab site's favicons. In dark mode the SVG sets the mark on a white tile. -->
-    <link rel="icon" href={url('favicon.ico')} sizes="32x32" />
-    <link rel="icon" type="image/svg+xml" href={url('favicon.svg')} />
-    <link rel="apple-touch-icon" href={url('apple-touch-icon.png')} />
+    <link rel="icon" href={`${base}/favicon.ico`} sizes="32x32" />
+    <link rel="icon" type="image/svg+xml" href={`${base}/favicon.svg`} />
+    <link rel="apple-touch-icon" href={`${base}/apple-touch-icon.png`} />
 
     <meta property="og:type" content="website" />
     <meta property="og:title" content={project.title} />
@@ -54,8 +45,6 @@ const jsonLd = {
     <meta name="twitter:title" content={project.title} />
     <meta name="twitter:description" content={project.description} />
     <meta name="twitter:image" content={ogImage} />
-
-    <script type="application/ld+json" is:inline set:html={JSON.stringify(jsonLd)} />
 
     <Analytics />
   </head>

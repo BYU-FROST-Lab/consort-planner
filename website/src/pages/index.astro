@@ -24,9 +24,6 @@ import Tabs from '../components/Tabs.astro';
 import VideoEmbed from '../components/VideoEmbed.astro';
 import { project, videoPlanningStart, youtubeId } from '../config';
 import Base from '../layouts/Base.astro';
-import { warnPlaceholders } from '../lib/placeholders';
-
-warnPlaceholders();
 
 // Problem (6) of the paper.
 const problem = String.raw`\begin{aligned}
@@ -164,16 +161,12 @@ const baselines = [
       </div>
     </div>
 
-    {
-      youtubeId && (
-        <p class="mt-4 text-center text-[0.95rem] text-ink-2">
-          <a href={`https://youtu.be/${youtubeId}?t=${videoPlanningStart}`} data-video-seek={videoPlanningStart} class="link">
-            See both stages animated in the video
-          </a>{' '}
-          <span class="text-ink-3">({Math.floor(videoPlanningStart / 60)}:{String(videoPlanningStart % 60).padStart(2, '0')})</span>
-        </p>
-      )
-    }
+    <p class="mt-4 text-center text-[0.95rem] text-ink-2">
+      <a href={`https://youtu.be/${youtubeId}?t=${videoPlanningStart}`} data-video-seek={videoPlanningStart} class="link">
+        See both stages animated in the video
+      </a>{' '}
+      <span class="text-ink-3">({Math.floor(videoPlanningStart / 60)}:{String(videoPlanningStart % 60).padStart(2, '0')})</span>
+    </p>
 
     <Disclosure summary="Problem formulation and belief model" class="mt-4">
       <div class="prose-body">

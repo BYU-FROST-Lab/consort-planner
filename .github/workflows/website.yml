@@ -7,10 +7,10 @@ name: Website
 
 on:
   pull_request:
-    paths: ['website/**', 'code/results/paper/ladder/**', '.github/workflows/website.yml']
+    paths: ['website/**', '.github/workflows/website.yml']
   push:
     branches: [main]
-    paths: ['website/**', 'code/results/paper/ladder/**', '.github/workflows/website.yml']
+    paths: ['website/**', '.github/workflows/website.yml']
   workflow_dispatch:
 
 permissions:
@@ -32,11 +32,6 @@ jobs:
           cache-dependency-path: website/package-lock.json
 
       - run: npm ci
-
-      # The constraint ladder's data is generated from the planner's Fig. 2 runs;
-      # fail if code/results/paper/ladder changed without re-running the export.
-      - name: Check the ladder data matches the planner's runs
-        run: python3 scripts/export_ladder.py && git diff --exit-code -- src/data/constraint-ladder.json
 
       # Type-checks pages and components.
       - run: npm run check

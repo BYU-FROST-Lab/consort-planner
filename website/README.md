@@ -14,7 +14,7 @@ npm install
 npm run dev
 ```
 
-Then open <http://localhost:4321/consort-planner/>.
+Then open <http://localhost:4321/consort-planner/>. `npm run check` type-checks the pages and `npm run build` builds to `dist/`. GitHub Actions runs both on pull requests and pushes to `main` that touch `website/` (see `.github/workflows/website.yml`).
 
 ## Where the content comes from
 
@@ -22,36 +22,22 @@ Then open <http://localhost:4321/consort-planner/>.
 |---|---|
 | Title, authors, venue, links, BibTeX fields | `src/config.ts` |
 | Section text | `src/pages/index.astro` |
-| Figures 3–6 | `src/assets/figures/`, converted from their PDFs in `code/figures/paper` by `scripts/export_plots.py` |
-| Figures 1, 7, and 8 | `src/assets/figures/`, cropped from the paper by `scripts/extract_figures.py` |
-| Constraint ladder (Fig. 2) | `src/data/constraint-ladder.json`, built from the planner's Fig. 2 runs in `code/results/paper/ladder` by `scripts/export_ladder.py` |
+| Figures | `src/assets/figures/`: Figs. 3–6 rendered from their PDFs in `code/figures/paper`, Figs. 1, 7, and 8 cropped from the paper |
+| Constraint ladder (Fig. 2) | `src/data/constraint-ladder.json`, exported from the planner's Fig. 2 runs in `code/results/paper/ladder` |
 | Table I | `src/components/ResultsTable.astro`, typed in from the paper |
 | Footer links, favicons | `src/data/footer.ts` and `public/`, copied from the FROST Lab site; keep them in sync |
 
-The constraint ladder replays Fig. 2's four plans as an interactive SVG. `scripts/export_ladder.py` reads each run's B-spline control points, evaluates the spline with a port of the planner's sampler, and refuses to write unless the primary's length matches `results.yaml` to a millimeter. Fig. 2's configs set `cont_unc_use_waypoints: true`, so the planner schedules exchanges (every 100 m) and weighs landmarks along the control polygon, not the spline. The replay does the same: it runs on that polygon's arc length, takes each exchange's weight from it with the planner's tapers (half weight at 300 m for communication, 100 m for landmarks), and draws the agents on the flown splines at the matching point. The tapers have no hard cutoff, so an exchange beyond 300 m still counts at reduced weight; those are drawn dashed. Re-run the script with `python3 scripts/export_ladder.py` if the runs change.
+The constraint ladder replays the planner's runs rather than redrawing the figure. Fig. 2's configs set `cont_unc_use_waypoints: true`, so the planner schedules its exchanges (every 100 m) and weighs landmarks along each agent's waypoint path. The replay runs on that path's arc length and draws the agents on the flown splines at the matching point. The communication weight halves at 300 m but has no hard cutoff, so an exchange beyond that range still counts at reduced weight; those are drawn dashed.
+
+Figures are lossless WebP at about twice their on-page width, served as committed so the plot text stays sharp. Videos go on YouTube, not in the repo.
 
 ## Placeholders to replace
 
-All of them live in `src/config.ts`, and `npm run build` warns about the first one until it's set:
+All of them live in `src/config.ts`:
 
 - `arxivId`: enables the Paper and arXiv buttons and fills in the BibTeX
-- `venue`: shown in orange under the title once set (hidden for now)
+- `project.venue`: shown in orange under the title once set (hidden for now)
 - `publication.booktitle`: once accepted, switches the BibTeX from arXiv `@misc` to `@inproceedings`
-
-## Keeping the repo small
-
-The site's committed assets are about 0.6 MB. To keep it that way:
-
-- **Videos go on YouTube**, not in the repo: set `youtubeId`. The optional looping hero video (`heroVideo` in `src/config.ts`, file in `public/videos/`) should be short, muted, and under ~2 MB. Commit it once: every revision of a binary stays in git history.
-- **Figures are lossless WebP** at about twice their on-page width (20–140 KB each). Pages serve them as committed, without re-encoding, so the plot text stays sharp.
-- **Photos are lossy WebP** at quality 80. The HoloOcean render is 194 KB, and Astro builds the hero's responsive AVIF sizes from it at build time. Build output isn't committed.
-
-To refresh the plots after `code/figures/paper` changes, run `python3 scripts/export_plots.py` (needs Ghostscript and Pillow). Figs. 1, 7, and 8 come from the paper itself; to refresh them from a new PDF (e.g. the camera-ready):
-
-```bash
-pip install pymupdf pillow
-python scripts/extract_figures.py path/to/paper.pdf
-```
 
 ## Analytics
 
@@ -63,19 +49,9 @@ gh variable set PUBLIC_GA_ID --repo BYU-FROST-Lab/consort-planner --body "$(gh v
 
 Without the variable, as in local builds, the page loads no analytics.
 
-## Checks
-
-```bash
-npm run check    # type-check pages and components
-npm run build    # build to dist/
-npm run preview  # serve dist/ locally
-```
-
-GitHub Actions runs `check` and `build` on pull requests and pushes to `main` that touch `website/` (see `.github/workflows/website.yml`).
-
 ## Publishing
 
-1. Fill in the placeholders above, and check that the build no longer warns about them.
+1. Fill in the placeholders above.
 2. Make the repository public, or the Code button and the links into the repo will 404 for visitors.
 3. In the repository's **Settings → Pages**, set **Source** to **GitHub Actions**. Leave **Custom domain** empty: the site inherits frostlab.byu.edu from the org site, as described in `astro.config.mjs`.
 4. Switch on the deploy job and run it:

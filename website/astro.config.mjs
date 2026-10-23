@@ -18,6 +18,5 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   site: 'https://frostlab.byu.edu',
   base: '/consort-planner',
-  trailingSlash: 'ignore',
   vite: { plugins: [tailwindcss()] },
 });

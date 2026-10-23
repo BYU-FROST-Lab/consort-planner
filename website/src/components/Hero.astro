@@ -1,8 +1,7 @@
 ---
 import { Picture } from 'astro:assets';
 import holoocean from '../assets/figures/fig7-holoocean.webp';
-import { affiliations, authors, heroVideo, links, project } from '../config';
-import { url } from '../lib/url';
+import { affiliations, authors, links, project } from '../config';
 import HeroButton from './HeroButton.astro';
 import Icon from './Icon.astro';
 
@@ -12,37 +11,20 @@ interface Props {
 }
 
 const { next } = Astro.props;
-const numbered = affiliations.length > 1;
-const anyEqual = authors.some((a) => a.equal);
 ---
 
 <section id="top" class="relative isolate flex min-h-svh items-center overflow-hidden bg-abyss text-white">
-  {
-    heroVideo ? (
-      <video
-        class="absolute inset-0 -z-20 size-full object-cover"
-        autoplay
-        muted
-        loop
-        playsinline
-        aria-hidden="true"
-        data-hero-video
-        src={url(heroVideo)}
-      />
-    ) : (
-      <Picture
-        src={holoocean}
-        formats={['avif']}
-        fallbackFormat="webp"
-        widths={[640, 960, 1280, holoocean.width]}
-        sizes="100vw"
-        alt=""
-        loading="eager"
-        fetchpriority="high"
-        class="absolute inset-0 -z-20 size-full object-cover"
-      />
-    )
-  }
+  <Picture
+    src={holoocean}
+    formats={['avif']}
+    fallbackFormat="webp"
+    widths={[640, 960, 1280, holoocean.width]}
+    sizes="100vw"
+    alt=""
+    loading="eager"
+    fetchpriority="high"
+    class="absolute inset-0 -z-20 size-full object-cover"
+  />
   <div class="hero-overlay absolute inset-0 -z-10" aria-hidden="true"></div>
 
   <div class="mx-auto w-full max-w-5xl px-4 py-20 sm:px-6">
@@ -59,19 +41,10 @@ const anyEqual = authors.some((a) => a.equal);
         {
           authors.map((a, i) => (
             <span class="inline-block px-1">
-              {a.url ? (
-                <a href={a.url} class="text-glow hover:underline">
-                  {a.name}
-                </a>
-              ) : (
-                <span class="text-glow">{a.name}</span>
-              )}
-              {(numbered || a.equal) && (
-                <sup class="text-[0.65em]">
-                  {numbered && a.affiliations.join(',')}
-                  {a.equal && '*'}
-                </sup>
-              )}
+              <a href={a.url} class="text-glow hover:underline">
+                {a.name}
+              </a>
+              <sup class="text-[0.65em]">{a.affiliations.join(',')}</sup>
               {i < authors.length - 1 && ','}
             </span>
           ))
@@ -82,13 +55,12 @@ const anyEqual = authors.some((a) => a.equal);
         {
           affiliations.map((name, i) => (
             <span class="inline-block px-2">
-              {numbered && <sup class="text-[0.7em]">{i + 1}</sup>}
+              <sup class="text-[0.7em]">{i + 1}</sup>
               {name}
             </span>
           ))
         }
       </p>
-      {anyEqual && <p class="mt-1 font-display text-sm text-[#f8fbff]/70">* Equal contribution</p>}
 
       <div class="mt-7 flex flex-wrap justify-center gap-2.5">
         <HeroButton label="Paper" icon="paper" href={links.paper} />
@@ -107,12 +79,3 @@ const anyEqual = authors.some((a) => a.equal);
     <Icon name="chevron-down" class="size-7 motion-safe:animate-bounce" />
   </a>
 </section>
-
-<script>
-  // Respect reduced motion: a looping background video should stay still.
-  const video = document.querySelector<HTMLVideoElement>('[data-hero-video]');
-  if (video && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    video.removeAttribute('autoplay');
-    video.pause();
-  }
-</script>

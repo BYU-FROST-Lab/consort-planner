@@ -9,7 +9,6 @@
   --font-serif: 'Instrument Serif', Georgia, 'Times New Roman', serif;
   --font-display: 'Google Sans', 'Noto Sans Variable', system-ui, sans-serif;
   --font-sans: 'Noto Sans Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   --color-ink: #17202b;
   --color-ink-2: #465163;
@@ -36,8 +35,6 @@
 @layer base {
   html {
     color-scheme: light;
-    background-color: var(--color-page);
-    color: var(--color-ink);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     scroll-behavior: smooth;

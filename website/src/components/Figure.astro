@@ -5,7 +5,7 @@ interface Props {
   src: ImageMetadata;
   alt: string;
   /** Bold lead-in to the caption, e.g. "Fig. 3." */
-  label?: string;
+  label: string;
   /**
    * Inside a grid of side-by-side figures: share the parent's rows, so the
    * images sit on a common baseline and the captions start on one line.
@@ -19,19 +19,14 @@ interface Props {
 // on-page width. Re-encoding them as lossy WebP would blur the plot text and,
 // for flat-color plots, make the files larger, not smaller.
 const { src, alt, label, subgrid = false, class: className } = Astro.props;
-const hasCaption = Astro.slots.has('default');
 ---
 
 <figure class:list={[subgrid && 'row-span-2 grid grid-rows-subgrid', className]}>
   <div class:list={['overflow-hidden rounded-xl border border-line bg-white p-2 sm:p-3', subgrid && 'self-end']}>
     <img src={src.src} width={src.width} height={src.height} alt={alt} loading="lazy" decoding="async" class="h-auto w-full" />
   </div>
-  {
-    hasCaption && (
-      <figcaption class:list={['text-[0.925rem] leading-relaxed text-ink-3', !subgrid && 'mt-3']}>
-        {label && <span class="font-semibold text-ink-2">{label} </span>}
-        <slot />
-      </figcaption>
-    )
-  }
+  <figcaption class:list={['text-[0.925rem] leading-relaxed text-ink-3', !subgrid && 'mt-3']}>
+    <span class="font-semibold text-ink-2">{label} </span>
+    <slot />
+  </figcaption>
 </figure>

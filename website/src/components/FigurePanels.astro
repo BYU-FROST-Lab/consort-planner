@@ -5,14 +5,13 @@ interface Props {
   /** Panels of one figure, set side by side on wide screens. */
   panels: { src: ImageMetadata; alt: string }[];
   /** Bold lead-in to the shared caption, e.g. "Fig. 3." */
-  label?: string;
-  class?: string;
+  label: string;
 }
 
-const { panels, label, class: className } = Astro.props;
+const { panels, label } = Astro.props;
 ---
 
-<figure class={className}>
+<figure>
   <div class="grid gap-3 sm:grid-cols-2">
     {
       panels.map((p) => (
@@ -23,7 +22,7 @@ const { panels, label, class: className } = Astro.props;
     }
   </div>
   <figcaption class="mt-3 text-[0.925rem] leading-relaxed text-ink-3">
-    {label && <span class="font-semibold text-ink-2">{label} </span>}
+    <span class="font-semibold text-ink-2">{label} </span>
     <slot />
   </figcaption>
 </figure>
