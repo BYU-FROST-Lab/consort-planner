@@ -1,0 +1,24 @@
+---
+// Google Analytics, set up as on the FROST Lab site (its
+// src/components/common/Analytics.astro): the measurement ID comes from
+// PUBLIC_GA_ID at build time, which CI sets from the repository variable of
+// the same name. Unset, as in a local build, the page loads no analytics.
+const id = import.meta.env.PUBLIC_GA_ID?.trim() || undefined;
+const config =
+  id &&
+  `window.dataLayer = window.dataLayer || [];
+  function gtag() {
+    window.dataLayer.push(arguments);
+  }
+  gtag('js', new Date());
+  gtag('config', ${JSON.stringify(id).replace(/</g, '\\u003c')});`;
+---
+
+{
+  id && (
+    <>
+      <script is:inline async src={`https://www.googletagmanager.com/gtag/js?id=${id}`} />
+      <script is:inline set:html={config} />
+    </>
+  )
+}

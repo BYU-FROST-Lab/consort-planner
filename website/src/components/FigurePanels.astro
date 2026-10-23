@@ -1,0 +1,28 @@
+---
+import type { ImageMetadata } from 'astro';
+
+interface Props {
+  /** Panels of one figure, set side by side on wide screens. */
+  panels: { src: ImageMetadata; alt: string }[];
+  /** Bold lead-in to the shared caption, e.g. "Fig. 3." */
+  label: string;
+}
+
+const { panels, label } = Astro.props;
+---
+
+<figure>
+  <div class="grid gap-3 sm:grid-cols-2">
+    {
+      panels.map((p) => (
+        <div class="overflow-hidden rounded-xl border border-line bg-white p-2 sm:p-3">
+          <img src={p.src.src} width={p.src.width} height={p.src.height} alt={p.alt} loading="lazy" decoding="async" class="h-auto w-full" />
+        </div>
+      ))
+    }
+  </div>
+  <figcaption class="mt-3 text-[0.925rem] leading-relaxed text-ink-3">
+    <span class="font-semibold text-ink-2">{label} </span>
+    <slot />
+  </figcaption>
+</figure>

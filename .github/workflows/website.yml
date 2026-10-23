@@ -36,7 +36,11 @@ jobs:
       # Type-checks pages and components.
       - run: npm run check
 
+      # Google Analytics, as on the lab site: the measurement ID is the repository
+      # variable PUBLIC_GA_ID. Unset, the page builds without analytics.
       - run: npm run build
+        env:
+          PUBLIC_GA_ID: ${{ vars.PUBLIC_GA_ID }}
 
       - uses: actions/upload-pages-artifact@v5
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.PUBLISH_WEBSITE == 'true'

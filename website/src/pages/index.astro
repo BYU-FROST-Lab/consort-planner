@@ -1,8 +1,10 @@
 ---
 import fig1 from '../assets/figures/fig1-escort-problem.webp';
-import fig3 from '../assets/figures/fig3-baselines.webp';
+import fig3a from '../assets/figures/fig3a-success.webp';
+import fig3b from '../assets/figures/fig3b-length.webp';
 import fig4 from '../assets/figures/fig4-runtime.webp';
-import fig5 from '../assets/figures/fig5-ablation.webp';
+import fig5a from '../assets/figures/fig5a-ablation-success.webp';
+import fig5b from '../assets/figures/fig5b-ablation-length.webp';
 import fig6 from '../assets/figures/fig6-ablation-runtime.webp';
 import fig7 from '../assets/figures/fig7-holoocean.webp';
 import fig8 from '../assets/figures/fig8-monte-carlo.webp';
@@ -10,19 +12,18 @@ import Citation from '../components/Citation.astro';
 import ConstraintLadder from '../components/ConstraintLadder.astro';
 import Disclosure from '../components/Disclosure.astro';
 import Figure from '../components/Figure.astro';
+import FigurePanels from '../components/FigurePanels.astro';
 import Footer from '../components/Footer.astro';
 import Hero from '../components/Hero.astro';
 import MathBlock from '../components/MathBlock.astro';
 import ResultsTable from '../components/ResultsTable.astro';
 import Section from '../components/Section.astro';
+import SectionNav from '../components/SectionNav.astro';
 import StatTile from '../components/StatTile.astro';
 import Tabs from '../components/Tabs.astro';
 import VideoEmbed from '../components/VideoEmbed.astro';
-import { project, youtubeId } from '../config';
+import { project, videoPlanningStart, youtubeId } from '../config';
 import Base from '../layouts/Base.astro';
-import { warnPlaceholders } from '../lib/placeholders';
-
-warnPlaceholders();
 
 // Problem (6) of the paper.
 const problem = String.raw`\begin{aligned}
@@ -65,16 +66,30 @@ const belief = [
   },
 ];
 
+// How each baseline plans (Sec. V-B; code/src/planner/algorithms).
 const baselines = [
-  { name: 'Greedy', removes: 'lookahead', body: 'The primary takes its shortest clear route, and at every step the support picks the move that most reduces the primary’s uncertainty at that step.' },
-  { name: 'Formation', removes: 'support routing', body: 'The support holds a fixed slot in the primary’s body frame while the primary plans alone.' },
-  { name: 'Sequential', removes: 'the joint state space', body: 'Prioritized planning: the primary plans first, the support plans against it, and the primary replans once.' },
-  { name: 'CL-GBT', removes: 'exhaustive lattice search', body: 'One rapidly exploring random tree over the team’s joint belief, inspired by Theurkauf et al. (IROS 2025).' },
+  { name: 'Greedy', body: 'The primary takes its shortest route; the support takes whichever next step most reduces the primary’s uncertainty.' },
+  { name: 'Formation', body: 'The primary plans alone while the support holds a fixed position beside it.' },
+  { name: 'Sequential', body: 'Agents plan one at a time: the primary, then the support against it, then the primary once more.' },
+  { name: 'CL-GBT', body: 'A sampling-based tree over both agents’ joint state, after Theurkauf et al., instead of a lattice search.' },
 ];
 ---
 
 <Base>
   <Hero next="video" />
+  <SectionNav
+    after="top"
+    items={[
+      { id: 'video', label: 'Video' },
+      { id: 'overview', label: 'Overview' },
+      { id: 'abstract', label: 'Abstract' },
+      { id: 'method', label: 'Method' },
+      { id: 'constraint-ladder', label: 'Constraint ladder' },
+      { id: 'results', label: 'Results' },
+      { id: 'simulation', label: 'HoloOcean' },
+      { id: 'bibtex', label: 'BibTeX' },
+    ]}
+  />
 
   <Section id="video" tint>
     <div class="mx-auto max-w-4xl">
@@ -87,14 +102,13 @@ const baselines = [
       src={fig1}
       alt="Hexagonal lattice with an obstacle in the middle. The primary agent's path passes above the obstacle to the goal; the support agent's path dips below it toward a landmark, takes a reading, and relays position data to the primary near the goal."
       label="The escort problem."
-      class="mx-auto max-w-[48rem]"
+      class="mx-auto max-w-[36rem]"
     >
       The primary must reach the goal with its localization uncertainty under a terminal bound, and the support is routed
       to hold it there. The <span class="font-medium text-support-agent">support agent</span>{' '}
       <span class="font-medium text-landmark-ink">localizes with a landmark</span> and{' '}
       <span class="font-medium text-relay">relays position data</span>, enabling the{' '}
-      <span class="font-medium text-primary-agent">primary agent</span> to take a more direct path. Both trajectories are
-      searched on a heading-aware hexagonal lattice and then refined as B-splines.
+      <span class="font-medium text-primary-agent">primary agent</span> to take a more direct path.
     </Figure>
   </Section>
 
@@ -147,6 +161,13 @@ const baselines = [
       </div>
     </div>
 
+    <p class="mt-4 text-center text-[0.95rem] text-ink-2">
+      <a href={`https://youtu.be/${youtubeId}?t=${videoPlanningStart}`} data-video-seek={videoPlanningStart} class="link">
+        See both stages animated in the video
+      </a>{' '}
+      <span class="text-ink-3">({Math.floor(videoPlanningStart / 60)}:{String(videoPlanningStart % 60).padStart(2, '0')})</span>
+    </p>
+
     <Disclosure summary="Problem formulation and belief model" class="mt-4">
       <div class="prose-body">
         <p>
@@ -159,7 +180,8 @@ const baselines = [
       <div class="mt-5 rounded-xl border border-line bg-tint px-4 py-5 sm:px-6">
         <MathBlock tex={problem} />
       </div>
-      <dl class="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2">
+      <h4 class="mt-7 font-display text-sm font-medium tracking-wider text-accent uppercase">Constraints</h4>
+      <dl class="mt-3 grid gap-x-8 gap-y-4 sm:grid-cols-2">
         {
           constraints.map((c) => (
             <div>
@@ -169,8 +191,10 @@ const baselines = [
           ))
         }
       </dl>
-      <p class="mt-8 text-[0.95rem] leading-relaxed text-ink-2">
-        Covariance is never a decision variable. It is a deterministic function of the mean trajectories:
+      <h4 class="mt-8 font-display text-sm font-medium tracking-wider text-accent uppercase">Belief model</h4>
+      <p class="mt-1 text-[0.95rem] leading-relaxed text-ink-2">
+        Covariance is not a decision variable. It is a deterministic function of the mean trajectories, built from three
+        parts:
       </p>
       <dl class="mt-4 grid gap-x-8 gap-y-4 sm:grid-cols-3">
         {
@@ -193,10 +217,11 @@ const baselines = [
   >
     <ConstraintLadder />
     <p class="mx-auto mt-5 max-w-3xl text-center text-sm leading-relaxed text-ink-3">
-      Fig. 2 of the paper: a 1700 m corridor with 14 obstacles and three landmarks. Both agents move at the same constant
-      speed, so arc length <span class="font-serif italic">s</span> is a shared clock. Exchanges are scheduled every 100 m of
-      arc and drawn as green links, landmark readings as orange lines, each faded by the logistic taper of its range. The
-      faint ring, the primary’s 300 m communication range, appears as the support nears its edge.
+      The four plans of Fig. 2, replayed from the planner’s runs: a 1700 m corridor with 14 obstacles and three landmarks.
+      Green links are the planner’s exchanges, scheduled every 100 m of arc and faded by its weight. The weight halves at
+      the 300 m communication range but has no hard cutoff, so an exchange beyond the range still counts, at reduced
+      weight, and is drawn dashed. Orange lines are landmark readings. The faint ring, the primary’s communication range,
+      appears as the support nears its edge.
     </p>
   </Section>
 
@@ -217,15 +242,21 @@ const baselines = [
         tabs={[
           { id: 'success', label: 'Success rate & length' },
           { id: 'table', label: 'Path length table' },
-          { id: 'time', label: 'Planning time' },
           { id: 'ablation', label: 'Ablation' },
+          { id: 'time', label: 'Planning time' },
         ]}
       >
         <div role="tabpanel" id="panel-success" aria-labelledby="tab-success">
-          <Figure src={fig3} alt="Success rate and primary path length versus constraint level for CONSORT and four baselines." label="Fig. 3." class="mx-auto max-w-[680px]">
-            Fraction of the 50 scenarios solved (top) and mean primary path length over the solved scenarios, normalized by
-            the single-agent reference length (bottom), as the bound tightens.
-          </Figure>
+          <FigurePanels
+            panels={[
+              { src: fig3a, alt: 'Success rate versus constraint level for CONSORT and four baselines.' },
+              { src: fig3b, alt: 'Mean primary path length over the solved scenarios, relative to the single-agent reference, versus constraint level.' },
+            ]}
+            label="Fig. 3."
+          >
+            Fraction of the 50 scenarios solved (left) and mean primary path length over the solved scenarios, normalized by
+            the single-agent reference length (right), as the bound tightens.
+          </FigurePanels>
         </div>
         <div role="tabpanel" id="panel-table" aria-labelledby="tab-table" hidden>
           <ResultsTable />
@@ -236,41 +267,46 @@ const baselines = [
             path. † marks fewer than five solved scenarios; “–” means none solved.
           </p>
         </div>
-        <div role="tabpanel" id="panel-time" aria-labelledby="tab-time" hidden>
-          <Figure src={fig4} alt="Box plots of wall-clock time per planner at five constraint levels, on a log scale." label="Fig. 4." class="mx-auto max-w-[760px]">
-            Wall-clock time per planner over successful runs (log scale). Most of it is overhead shared with the single-agent
-            reference, which takes 16 s; only CL-GBT grows with the bound, and its longest run took 730 s.
-          </Figure>
-        </div>
         <div role="tabpanel" id="panel-ablation" aria-labelledby="tab-ablation" hidden>
-          <div class="grid items-start gap-6 md:grid-cols-2">
-            <Figure src={fig5} alt="Ablation: success rate and path length for the full pipeline, the discrete stage alone, and a straight-line seed." label="Fig. 5.">
-              Ablation on a separate set of 30 scenarios drawn without the straight-line screen.
-            </Figure>
-            <Figure src={fig6} alt="Ablation: wall-clock time of the three arms." label="Fig. 6.">
-              Wall-clock time of the ablation arms. The refinement adds about 1.5 s to the discrete stage.
-            </Figure>
-          </div>
+          <FigurePanels
+            panels={[
+              { src: fig5a, alt: 'Ablation: success rate of the full pipeline, the discrete stage alone, and a straight-line seed.' },
+              { src: fig5b, alt: 'Ablation: mean primary path length of the three arms, relative to the single-agent reference.' },
+            ]}
+            label="Fig. 5."
+          >
+            Ablation on a separate set of 30 scenarios drawn without the straight-line screen: success rate (left) and mean
+            primary path length over the solved scenarios (right).
+          </FigurePanels>
           <p class="mx-auto mt-6 max-w-3xl text-center text-ink-2">
             The joint search finds the landmarks, and the refinement makes the route short: the discrete stage alone returns
             paths 2 to 7% longer at every level down to 50%, and a straight seed solves none below 60%.
           </p>
         </div>
+        <div role="tabpanel" id="panel-time" aria-labelledby="tab-time" hidden>
+          <div class="grid gap-x-6 gap-y-3 md:grid-cols-2">
+            <Figure subgrid src={fig4} alt="Box plots of wall-clock time per planner at five constraint levels, on a log scale." label="Fig. 4.">
+              Wall-clock time per planner over successful runs (log scale). Most of it is overhead shared with the
+              single-agent reference, which takes 16 s; only CL-GBT grows with the bound, and its longest run took 730 s.
+            </Figure>
+            <Figure subgrid class="max-md:mt-6" src={fig6} alt="Box plots of wall-clock time of the three ablation arms." label="Fig. 6.">
+              Wall-clock time of the ablation arms. The refinement adds about 1.5 s to the discrete stage.
+            </Figure>
+          </div>
+        </div>
       </Tabs>
     </div>
 
-    <h3 class="mt-16 text-center font-serif text-[1.9rem] text-ink">What each baseline removes</h3>
+    <h3 class="mt-16 text-center font-serif text-[1.9rem] text-ink">Baselines</h3>
     <p class="mx-auto mt-2 max-w-2xl text-center text-ink-2">
-      All four share CONSORT’s covariance model, obstacle test, and refinement, so the comparison isolates how the team is
-      routed.
+      All four share CONSORT’s covariance model, obstacle test, and refinement. They differ in how they route the team.
     </p>
     <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {
         baselines.map((b) => (
           <div class="rounded-xl border border-line bg-white p-5">
             <p class="font-display font-medium text-ink">{b.name}</p>
-            <p class="mt-0.5 font-display text-xs tracking-wide text-accent uppercase">removes {b.removes}</p>
-            <p class="mt-2 text-sm leading-relaxed text-ink-2">{b.body}</p>
+            <p class="mt-1.5 text-sm leading-relaxed text-ink-2">{b.body}</p>
           </div>
         ))
       }
@@ -280,12 +316,12 @@ const baselines = [
   <Section
     id="simulation"
     title="Validation in HoloOcean"
-    lead="One plan, flown 30 times with a vehicle, controller, and estimator that share none of the planner’s equations."
+    lead="One plan, executed 30 times with a vehicle, controller, and estimator that share none of the planner’s equations."
     tint
   >
     <div class="grid items-start gap-6 md:grid-cols-2">
       <Figure src={fig7} alt="Two torpedo-shaped autonomous underwater vehicles over the seabed in the HoloOcean simulator." label="Fig. 7.">
-        The two vehicles in HoloOcean, each flying its planned spline at a fixed depth over the seabed.
+        The two vehicles in HoloOcean, each following its planned spline at a fixed depth over the seabed.
       </Figure>
       <Figure src={fig8} alt="Planned and mean executed trajectories of both agents with three-sigma cross-track envelopes around a wall." label="Fig. 8.">
         Closed-loop Monte Carlo of the behind-wall plan, with each agent’s mean executed trajectory and ±3σ cross-track
@@ -303,7 +339,7 @@ const baselines = [
     <div class="mx-auto mt-8 max-w-3xl prose-body">
       <p>
         Every planner in the benchmark shares one covariance model, so the benchmark cannot tell whether that model is
-        calibrated. Here torpedo-shaped vehicles fly the plan under HoloOcean 2.0’s depth and heading autopilot, steering on
+        calibrated. Here torpedo-shaped vehicles follow the plan under HoloOcean 2.0’s depth and heading autopilot, steering on
         an independently developed GTSAM factor-graph estimate, with acoustic exchanges every 100 m that succeed only within
         the planner’s communication range. The true terminal error came within 6% of the prediction, on the conservative
         side, though it also carried a 2.6 m along-track bias that no covariance check captures.
