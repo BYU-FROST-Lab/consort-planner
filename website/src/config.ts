@@ -13,9 +13,9 @@ export const project = {
     'CONSORT routes support agents so that a primary agent reaches its goal in minimum time with its localization uncertainty under a terminal bound, in GPS-denied environments.',
   /**
    * TODO: the venue once accepted, e.g. 'ICRA 2027'. Shown in orange under
-   * the title. Set to undefined to hide the line.
+   * the title; undefined hides the line.
    */
-  venue: 'Under review' as string | undefined,
+  venue: undefined as string | undefined,
 };
 
 export interface Author {

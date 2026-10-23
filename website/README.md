@@ -35,7 +35,7 @@ The constraint ladder replays Fig. 2's four plans as an interactive SVG. `script
 All of them live in `src/config.ts`, and `npm run build` warns about the first one until it's set:
 
 - `arxivId`: enables the Paper and arXiv buttons and fills in the BibTeX
-- `venue`: shown in orange under the title, currently "Under review"
+- `venue`: shown in orange under the title once set (hidden for now)
 - `publication.booktitle`: once accepted, switches the BibTeX from arXiv `@misc` to `@inproceedings`
 
 ## Keeping the repo small
