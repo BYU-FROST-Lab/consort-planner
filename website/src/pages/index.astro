@@ -16,13 +16,14 @@ import FigurePanels from '../components/FigurePanels.astro';
 import Footer from '../components/Footer.astro';
 import Hero from '../components/Hero.astro';
 import MathBlock from '../components/MathBlock.astro';
+import PlanningStages from '../components/PlanningStages.astro';
 import ResultsTable from '../components/ResultsTable.astro';
 import Section from '../components/Section.astro';
 import SectionNav from '../components/SectionNav.astro';
 import StatTile from '../components/StatTile.astro';
 import Tabs from '../components/Tabs.astro';
 import VideoEmbed from '../components/VideoEmbed.astro';
-import { project, videoPlanningStart, youtubeId } from '../config';
+import { project, youtubeId } from '../config';
 import Base from '../layouts/Base.astro';
 
 // Problem (6) of the paper.
@@ -161,12 +162,9 @@ const baselines = [
       </div>
     </div>
 
-    <p class="mt-4 text-center text-[0.95rem] text-ink-2">
-      <a href={`https://youtu.be/${youtubeId}?t=${videoPlanningStart}`} data-video-seek={videoPlanningStart} class="link">
-        See both stages animated in the video
-      </a>{' '}
-      <span class="text-ink-3">({Math.floor(videoPlanningStart / 60)}:{String(videoPlanningStart % 60).padStart(2, '0')})</span>
-    </p>
+    <div class="mt-6">
+      <PlanningStages />
+    </div>
 
     <Disclosure summary="Problem formulation and belief model" class="mt-4">
       <div class="prose-body">

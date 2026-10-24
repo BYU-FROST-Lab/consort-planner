@@ -44,9 +44,6 @@ export const arxivId: string | undefined = undefined;
 /** The YouTube video ID (the part after `youtu.be/`), embedded under the hero and behind the Video button. */
 export const youtubeId = 'prarYmi_3y4';
 
-/** Where the video's planning-stages animation starts, in seconds (linked from Method). */
-export const videoPlanningStart = 59;
-
 /** BibTeX fields. Until `booktitle` is set, the entry is arXiv's @misc format. */
 export const publication = {
   /** Year of the arXiv posting, or of the proceedings once `booktitle` is set. */

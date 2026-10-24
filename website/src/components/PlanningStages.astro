@@ -1,0 +1,525 @@
+---
+/**
+ * CONSORT's two planning stages, replayed from the Fig. 1 run's own logs
+ * (src/data/planning-stages.json, exported by code/figures/scripts/export_planning_stages.py).
+ *
+ * Stage 1 replays the joint A*: every path drawn is a state it popped. The pops are
+ * replayed in order of the primary's path length g rather than pop order, as in the
+ * video, so the frontier sweeps outward. Stage 2 replays the B-spline refinement's
+ * kept iterates, the curve the planner itself evaluated at each one.
+ */
+import data from '../data/planning-stages.json';
+import Icon from './Icon.astro';
+
+const { view, start, goal, bound, hex, obstacles, landmarks, stage1, stage2 } = data;
+const width = view.x1 - view.x0;
+const height = view.y1 - view.y0;
+// SVG y points down; the data's y points up.
+const viewBox = `${view.x0} ${-view.y1} ${width} ${height}`;
+const pts = (p: number[][]) => p.map(([x, y]) => `${x},${-y}`).join(' ');
+/** Flat [x0, y0, x1, y1, ...] to SVG points. */
+const flatPts = (f: number[]) => Array.from({ length: f.length / 2 }, (_, i) => `${f[2 * i]},${-f[2 * i + 1]}`).join(' ');
+
+// The lattice is pointy-topped: neighbors sit at 0° and ±60°, 100 m apart.
+const lattice = hex.centers
+  .map(([cx, cy]) =>
+    Array.from({ length: 6 }, (_, k) => {
+      const a = ((30 + 60 * k) * Math.PI) / 180;
+      return `${k === 0 ? 'M' : 'L'}${(cx + hex.radius * Math.cos(a)).toFixed(1)} ${(-(cy + hex.radius * Math.sin(a))).toFixed(1)}`;
+    }).join('') + 'Z',
+  )
+  .join('');
+
+// Unit five-point star, scaled in the browser to a fixed on-screen size.
+const star = Array.from({ length: 10 }, (_, i) => {
+  const r = i % 2 === 0 ? 1 : 0.45;
+  const a = -Math.PI / 2 + (i * Math.PI) / 5;
+  return `${(r * Math.cos(a)).toFixed(3)},${(r * Math.sin(a)).toFixed(3)}`;
+}).join(' ');
+
+/** Frontier paths held on screen at once; older ones fade out behind the newest. */
+const KEEP = 30;
+const stages = [
+  {
+    label: '1 · Search',
+    note: `The joint A* advances both agents one lattice edge per expansion. Each path is a state it popped, replayed in order of the primary’s path length g rather than pop order, so the frontier sweeps outward. Red crosses are moves pruned for crossing the island. It returns a ${stage1.seedLength} m seed whose primary ends at σ = ${stage1.seedSigma.toFixed(2)} m, inside the ${bound.toFixed(1)} m bound.`,
+  },
+  {
+    label: '2 · Refine',
+    note: `The seed’s cell centers become B-spline control points (squares). The barrier objective pulls them until the primary’s path shortens from ${stage2[0].length.toFixed(1)} m to ${stage2[stage2.length - 1].length.toFixed(1)} m. Its terminal σ rises from ${stage2[0].sigma.toFixed(2)} to ${stage2[stage2.length - 1].sigma.toFixed(2)} m, since the shorter path spends less time near the landmark, but stays inside the bound.`,
+  },
+];
+const final = stage2[stage2.length - 1];
+const ticks = [0, 500, 1000].map((x) => ({ x, at: ((x - view.x0) / width) * 100 }));
+const stroke = { 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' } as const;
+const meta = { bound, keep: KEEP, nodes: data.nodes, stage1, stage2, notes: stages.map((s) => s.note) };
+---
+
+<div data-stages class="mx-auto max-w-[48rem] rounded-2xl border border-line bg-white p-4 shadow-sm sm:p-5">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <p id="stages-label" class="font-display text-xs font-medium tracking-wider text-ink-3 uppercase">Stage</p>
+      <div role="group" aria-labelledby="stages-label" class="inline-flex rounded-full border border-line bg-tint p-1">
+        {
+          stages.map((s, i) => (
+            <button
+              type="button"
+              data-stage-button={i}
+              aria-pressed={i === 0 ? 'true' : 'false'}
+              class="rounded-full px-3 py-1 font-display text-sm font-medium text-ink-2 transition-colors hover:text-ink aria-pressed:bg-ink aria-pressed:text-white"
+            >
+              {s.label}
+            </button>
+          ))
+        }
+      </div>
+    </div>
+    <button
+      type="button"
+      data-play
+      class="inline-flex h-9 items-center gap-2 rounded-full bg-ink px-4 font-display text-sm font-medium text-white transition-opacity hover:opacity-90"
+    >
+      <span data-icon="play"><Icon name="play" class="size-4" /></span>
+      <span data-icon="pause" hidden><Icon name="pause" class="size-4" /></span>
+      <span data-icon="replay" hidden><Icon name="replay" class="size-4" /></span>
+      <span data-play-label>Play</span>
+    </button>
+  </div>
+
+  <div class="relative mt-3">
+    <svg data-map viewBox={viewBox} class="block h-auto w-full rounded-lg border border-line bg-white" role="img" aria-labelledby="stages-svg-title">
+      <title id="stages-svg-title">
+        The Fig. 1 scenario: a hexagonal lattice around an island obstacle with one landmark, showing the joint search's frontier or the B-spline refinement of its seed.
+      </title>
+      <path data-lattice d={lattice} fill="none" stroke="#d5dae2" stroke-width="1" vector-effect="non-scaling-stroke" class="transition-opacity duration-300" />
+      <g>
+        {obstacles.map((o) => <polygon points={pts(o)} fill="var(--color-obstacle)" stroke="#272c34" stroke-width="1" {...stroke} />)}
+      </g>
+      <!-- Each landmark's map uncertainty, drawn as Fig. 2 does: 2σ of 400x its covariance. -->
+      <g>
+        {
+          landmarks.map((l) => (
+            <ellipse cx={l.x} cy={-l.y} rx={l.rx} ry={l.ry} transform={`rotate(${-l.angle} ${l.x} ${-l.y})`} fill="var(--color-landmark)" />
+          ))
+        }
+      </g>
+
+      <!-- Stage 1: the newest popped paths (filled in by the script, oldest first so the newest draw on top) and the prunes. -->
+      <g data-stage-group="0">
+        <g data-frontier fill="none" stroke-width="1.6" {...stroke}>
+          {
+            Array.from({ length: KEEP }, () => (
+              <>
+                <polyline data-pool="support" points="" stroke="var(--color-support-agent)" opacity="0" />
+                <polyline data-pool="primary" points="" stroke="var(--color-primary-agent)" opacity="0" />
+              </>
+            ))
+          }
+        </g>
+        <g fill="none" stroke="#dc2626" stroke-width="1.5" stroke-linecap="round" vector-effect="non-scaling-stroke">
+          <path data-prunes="0" d="" opacity="0.9" />
+          <path data-prunes="1" d="" opacity="0.5" />
+          <path data-prunes="2" d="" opacity="0.2" />
+        </g>
+      </g>
+
+      <!-- The seed: the search's result, and Stage 2's reference. -->
+      <g data-seed class="transition-opacity duration-300">
+        <polyline points={flatPts(stage1.seed.support)} fill="none" stroke="var(--color-support-agent)" stroke-width="2" stroke-dasharray="7 4" {...stroke} />
+        <polyline points={flatPts(stage1.seed.primary)} fill="none" stroke="var(--color-primary-agent)" stroke-width="2.5" stroke-dasharray="7 4" {...stroke} />
+      </g>
+
+      <!-- Stage 2: the current iterate's control polygons, splines, and control points. -->
+      <g data-stage-group="1" opacity="0">
+        <g fill="none" stroke-width="1" opacity="0.45" {...stroke}>
+          <polyline data-polygon="support" points={flatPts(final.ctrls.support)} stroke="var(--color-support-agent)" />
+          <polyline data-polygon="primary" points={flatPts(final.ctrls.primary)} stroke="var(--color-primary-agent)" />
+        </g>
+        <polyline data-spline="support" points={flatPts(final.path.support)} fill="none" stroke="var(--color-support-agent)" stroke-width="2.25" {...stroke} />
+        <polyline data-spline="primary" points={flatPts(final.path.primary)} fill="none" stroke="var(--color-primary-agent)" stroke-width="2.75" {...stroke} />
+        <path data-ctrl="support" d="" fill="#fff" stroke="var(--color-support-agent)" stroke-width="1.5" vector-effect="non-scaling-stroke" />
+        <path data-ctrl="primary" d="" fill="#fff" stroke="var(--color-primary-agent)" stroke-width="1.5" vector-effect="non-scaling-stroke" />
+      </g>
+
+      <g fill="#14171c">{landmarks.map((l) => <circle data-px="2.6" cx={l.x} cy={-l.y} r="5" />)}</g>
+      <circle data-px="5" cx={start[0]} cy={-start[1]} r="10" fill="var(--color-start)" />
+      <polygon
+        data-star
+        data-px="9"
+        data-x={goal[0]}
+        data-y={-goal[1]}
+        points={star}
+        transform={`translate(${goal[0]} ${-goal[1]}) scale(18)`}
+        fill="var(--color-goal)"
+      />
+    </svg>
+    <div class="relative mt-1 h-5 font-mono text-[0.7rem] text-ink-3" aria-hidden="true">
+      {
+        ticks.map((t) => (
+          <span class="absolute -translate-x-1/2" style={`left:${t.at}%`}>
+            {t.x === 0 ? '0 m' : t.x}
+          </span>
+        ))
+      }
+    </div>
+  </div>
+
+  <input
+    type="range"
+    data-scrub
+    min="0"
+    max={stage1.pops.length}
+    step="1"
+    value={stage1.pops.length}
+    aria-label="Progress through the search"
+    class="mt-2 w-full accent-primary-agent"
+  />
+
+  <ul class="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 font-display text-[0.75rem] text-ink-2" aria-label="Legend">
+    <li class="flex items-center gap-1.5"><svg width="26" height="8" aria-hidden="true"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--color-primary-agent)" stroke-width="2.75" stroke-linecap="round" /></svg>Primary agent</li>
+    <li class="flex items-center gap-1.5"><svg width="26" height="8" aria-hidden="true"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--color-support-agent)" stroke-width="2.25" stroke-linecap="round" /></svg>Support agent</li>
+    <li class="flex items-center gap-1.5"><svg width="26" height="8" aria-hidden="true"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--color-ink-2)" stroke-width="2" stroke-dasharray="7 4" /></svg>Lattice seed</li>
+    <li class="flex items-center gap-1.5" data-legend="0"><svg width="12" height="12" aria-hidden="true"><path d="M2 2L10 10M10 2L2 10" stroke="#dc2626" stroke-width="1.5" stroke-linecap="round" /></svg>Pruned move</li>
+    <li class="flex items-center gap-1.5" data-legend="1" hidden><svg width="12" height="12" aria-hidden="true"><rect x="2" y="2" width="8" height="8" fill="#fff" stroke="var(--color-primary-agent)" stroke-width="1.5" /></svg>Control point</li>
+    <li class="flex items-center gap-1.5"><svg width="10" height="10" aria-hidden="true"><circle cx="5" cy="5" r="4.5" fill="var(--color-start)" /></svg>Start</li>
+    <li class="flex items-center gap-1.5"><svg width="14" height="14" viewBox="-1.1 -1.1 2.2 2.2" aria-hidden="true"><polygon points={star} fill="var(--color-goal)" /></svg>Goal</li>
+    <li class="flex items-center gap-1.5"><svg width="16" height="12" aria-hidden="true"><ellipse cx="8" cy="6" rx="7.5" ry="5.5" fill="var(--color-landmark)" /><circle cx="8" cy="6" r="1.8" fill="#14171c" /></svg>Landmark</li>
+    <li class="flex items-center gap-1.5"><svg width="14" height="12" aria-hidden="true"><rect x="0.5" y="0.5" width="13" height="11" fill="var(--color-obstacle)" stroke="#272c34" /></svg>Obstacle</li>
+  </ul>
+
+  <div class="mt-3 grid gap-3 border-t border-line pt-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
+    <dl class="grid grid-cols-3 gap-3" data-stats="0">
+      <div>
+        <dt class="text-xs text-ink-3">States expanded</dt>
+        <dd class="font-display text-lg font-medium text-ink tabular-nums" data-stat="pops">{stage1.pops.length}</dd>
+      </div>
+      <div>
+        <dt class="text-xs text-ink-3">Pruned moves</dt>
+        <dd class="font-display text-lg font-medium text-ink tabular-nums" data-stat="prunes">{stage1.prunes.length}</dd>
+      </div>
+      <div>
+        <dt class="text-xs text-ink-3">Frontier <span class="font-serif text-sm italic">g</span></dt>
+        <dd class="font-display text-lg font-medium text-ink tabular-nums" data-stat="depth">{stage1.seedLength} m</dd>
+      </div>
+    </dl>
+    <dl class="grid grid-cols-3 gap-3" data-stats="1" hidden>
+      <div>
+        <dt class="text-xs text-ink-3">Iteration</dt>
+        <dd class="font-display text-lg font-medium text-ink tabular-nums" data-stat="iter">{final.iter}</dd>
+      </div>
+      <div>
+        <dt class="text-xs text-ink-3">Primary length</dt>
+        <dd class="font-display text-lg font-medium text-ink tabular-nums" data-stat="length">{final.length.toFixed(1)} m</dd>
+      </div>
+      <div>
+        <dt class="text-xs text-ink-3">Terminal <span class="font-serif text-sm italic">σ</span> / <span class="font-serif text-sm italic">ū</span></dt>
+        <dd class="font-display text-lg font-medium text-ink tabular-nums">
+          <span data-stat="sigma">{final.sigma.toFixed(2)}</span><span class="text-ink-3"> / {bound.toFixed(2)} m</span>
+        </dd>
+      </div>
+    </dl>
+    <p class="text-sm leading-relaxed text-ink-2" data-stat="note">{stages[0].note}</p>
+  </div>
+
+  <script type="application/json" data-stages-meta set:html={JSON.stringify(meta)} />
+</div>
+
+<script>
+  /** A pop: [parent rank, support node, primary node, g, support σ, primary σ], sorted by g. */
+  type Pop = [number, number, number, number, number, number];
+  interface Iterate {
+    iter: number;
+    length: number;
+    sigma: number;
+    /** Flat [x0, y0, x1, y1, ...]. */
+    path: { primary: number[]; support: number[] };
+    ctrls: { primary: number[]; support: number[] };
+  }
+  interface Meta {
+    bound: number;
+    keep: number;
+    nodes: Record<string, [number, number]>;
+    stage1: { pops: Pop[]; prunes: [number, number, number][]; seedLength: number };
+    stage2: Iterate[];
+    notes: string[];
+  }
+  const AGENTS = ['primary', 'support'] as const;
+  type Agent = (typeof AGENTS)[number];
+
+  /** Replay length of each stage, in seconds. */
+  const DURATION = [8, 6];
+  /** Pause on the seed before playback moves on to Stage 2, in seconds. */
+  const HOLD = 1.2;
+  /** Pops over which a pruned move stays on screen, split into three fading buckets. */
+  const PRUNE_SPAN = 45;
+  /** On-screen size of a prune cross and a control point, in px. */
+  const CROSS_PX = 3.2;
+  const CTRL_PX = 3;
+
+  for (const root of document.querySelectorAll<HTMLElement>('[data-stages]')) {
+    const meta = JSON.parse(root.querySelector('[data-stages-meta]')!.textContent!) as Meta;
+    const { nodes, stage1, stage2 } = meta;
+    const pops = stage1.pops;
+    const prunes = stage1.prunes;
+    const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+    const qa = <T extends Element>(sel: string) => [...root.querySelectorAll<T>(sel)];
+    const svg = q<SVGSVGElement>('svg[data-map]');
+    const buttons = qa<HTMLButtonElement>('[data-stage-button]');
+    const groups = qa<SVGGElement>('[data-stage-group]');
+    const stats = qa<HTMLElement>('[data-stats]');
+    const legends = qa<HTMLElement>('[data-legend]');
+    const lattice = q<SVGPathElement>('[data-lattice]');
+    const seed = q<SVGGElement>('[data-seed]');
+    const pool = { primary: qa<SVGPolylineElement>('[data-pool="primary"]'), support: qa<SVGPolylineElement>('[data-pool="support"]') };
+    const pruneBuckets = qa<SVGPathElement>('[data-prunes]');
+    const spline = { primary: q<SVGPolylineElement>('[data-spline="primary"]'), support: q<SVGPolylineElement>('[data-spline="support"]') };
+    const polygon = { primary: q<SVGPolylineElement>('[data-polygon="primary"]'), support: q<SVGPolylineElement>('[data-polygon="support"]') };
+    const ctrl = { primary: q<SVGPathElement>('[data-ctrl="primary"]'), support: q<SVGPathElement>('[data-ctrl="support"]') };
+    const scrub = q<HTMLInputElement>('[data-scrub]');
+    const play = q<HTMLButtonElement>('[data-play]');
+    const playLabel = q<HTMLElement>('[data-play-label]');
+    const stat = (name: string) => q<HTMLElement>(`[data-stat="${name}"]`);
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    /** Where each stage ends: Stage 1 counts pops shown, Stage 2 indexes iterates (fractional between them). */
+    const end = [pops.length, stage2.length - 1];
+    let stage = 0;
+    const pos = [end[0], end[1]];
+    let playing = false;
+    let started = false;
+    let advance = false;
+    let holdUntil = 0;
+    let last = 0;
+    let raf = 0;
+    let metersPerPx = 1;
+
+    // A popped state's joint path, rebuilt by walking its parents back to the start.
+    const paths = new Map<number, Record<Agent, string>>();
+    const pathOf = (k: number) => {
+      let p = paths.get(k);
+      if (!p) {
+        const chain = { primary: [] as string[], support: [] as string[] };
+        for (let i = k; i >= 0; i = pops[i][0]) {
+          const [x1, y1] = nodes[pops[i][1]];
+          const [x2, y2] = nodes[pops[i][2]];
+          chain.support.push(`${x1},${-y1}`);
+          chain.primary.push(`${x2},${-y2}`);
+        }
+        p = { primary: chain.primary.reverse().join(' '), support: chain.support.reverse().join(' ') };
+        paths.set(k, p);
+      }
+      return p;
+    };
+
+    // Prunes are sorted by the rank of the pop that produced them.
+    const prunesBefore = (n: number) => {
+      let lo = 0;
+      let hi = prunes.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (prunes[mid][0] < n) lo = mid + 1;
+        else hi = mid;
+      }
+      return lo;
+    };
+
+    const toPoints = (f: number[]) => {
+      let out = '';
+      for (let i = 0; i < f.length; i += 2) out += `${f[i]},${-f[i + 1]} `;
+      return out;
+    };
+    const lerpFlat = (a: number[], b: number[], t: number) => a.map((v, i) => v + t * (b[i] - v));
+
+    const setButton = (state: 'play' | 'pause' | 'replay') => {
+      for (const el of play.querySelectorAll<HTMLElement>('[data-icon]')) el.hidden = el.dataset.icon !== state;
+      playLabel.textContent = state === 'play' ? 'Play' : state === 'pause' ? 'Pause' : 'Replay';
+    };
+
+    const renderSearch = () => {
+      // Before the first play, and at the end, the figure shows the search's result: the seed.
+      const n = started ? Math.round(pos[0]) : end[0];
+      const live = n < end[0];
+      for (let j = 0; j < meta.keep; j++) {
+        // Pool slot j holds the pop of age keep-1-j, so the newest draws on top.
+        const age = meta.keep - 1 - j;
+        const k = n - 1 - age;
+        for (const agent of AGENTS) {
+          const el = pool[agent][j];
+          if (!live || k < 0) {
+            el.setAttribute('opacity', '0');
+            continue;
+          }
+          el.setAttribute('points', pathOf(k)[agent]);
+          el.setAttribute('opacity', (0.06 + 0.8 * (1 - age / meta.keep) ** 1.6).toFixed(2));
+        }
+      }
+      const s = CROSS_PX * metersPerPx;
+      const upTo = prunesBefore(n);
+      pruneBuckets.forEach((el, b) => {
+        let d = '';
+        if (live) {
+          const from = prunesBefore(n - ((b + 1) * PRUNE_SPAN) / 3);
+          const to = prunesBefore(n - (b * PRUNE_SPAN) / 3);
+          for (let i = from; i < to; i++) {
+            const [, x, y] = prunes[i];
+            d += `M${x - s} ${-y - s}l${2 * s} ${2 * s}m0 ${-2 * s}l${-2 * s} ${2 * s}`;
+          }
+        }
+        el.setAttribute('d', d);
+      });
+      seed.style.opacity = live ? '0' : '1';
+      stat('pops').textContent = String(n);
+      stat('prunes').textContent = String(upTo);
+      stat('depth').textContent = n > 0 ? `${pops[n - 1][3]} m` : '0 m';
+    };
+
+    const renderRefine = () => {
+      const x = started ? pos[1] : end[1];
+      const i = Math.min(Math.floor(x), end[1] - 1);
+      const t = x - i;
+      const a = stage2[i];
+      const b = stage2[i + 1];
+      const shown = stage2[Math.round(x)];
+      const s = CTRL_PX * metersPerPx;
+      for (const agent of AGENTS) {
+        spline[agent].setAttribute('points', toPoints(lerpFlat(a.path[agent], b.path[agent], t)));
+        const c = lerpFlat(a.ctrls[agent], b.ctrls[agent], t);
+        polygon[agent].setAttribute('points', toPoints(c));
+        let d = '';
+        for (let j = 0; j < c.length; j += 2) d += `M${c[j] - s} ${-c[j + 1] - s}h${2 * s}v${2 * s}h${-2 * s}Z`;
+        ctrl[agent].setAttribute('d', d);
+      }
+      seed.style.opacity = '0.35';
+      stat('iter').textContent = String(shown.iter);
+      stat('length').textContent = `${shown.length.toFixed(1)} m`;
+      stat('sigma').textContent = shown.sigma.toFixed(2);
+    };
+
+    const render = () => {
+      if (stage === 0) renderSearch();
+      else renderRefine();
+      scrub.value = String(started ? pos[stage] : end[stage]);
+    };
+
+    const show = (i: number) => {
+      stage = i;
+      buttons.forEach((b, j) => b.setAttribute('aria-pressed', String(i === j)));
+      groups.forEach((g, j) => g.setAttribute('opacity', i === j ? '1' : '0'));
+      stats.forEach((el, j) => (el.hidden = i !== j));
+      legends.forEach((el) => (el.hidden = Number(el.dataset.legend) !== i));
+      lattice.style.opacity = i === 0 ? '1' : '0.45';
+      stat('note').textContent = meta.notes[i];
+      scrub.max = String(end[i]);
+      scrub.step = i === 0 ? '1' : '0.05';
+      scrub.setAttribute('aria-label', i === 0 ? 'Progress through the search' : 'Progress through the refinement');
+    };
+
+    const frame = (now: number) => {
+      if (!playing) return;
+      const dt = (now - last) / 1000;
+      last = now;
+      if (now < holdUntil) {
+        raf = requestAnimationFrame(frame);
+        return;
+      }
+      if (holdUntil) {
+        // The hold on the seed is over: carry on into Stage 2.
+        holdUntil = 0;
+        advance = false;
+        show(1);
+        pos[1] = 0;
+      }
+      pos[stage] = Math.min(pos[stage] + (dt * end[stage]) / DURATION[stage], end[stage]);
+      render();
+      if (pos[stage] >= end[stage]) {
+        if (stage === 0 && advance) {
+          holdUntil = now + HOLD * 1000;
+        } else {
+          playing = false;
+          setButton('replay');
+          return;
+        }
+      }
+      raf = requestAnimationFrame(frame);
+    };
+
+    const start = () => {
+      if (pos[stage] >= end[stage]) pos[stage] = 0;
+      // Playing the search runs on into the refinement.
+      advance = stage === 0;
+      started = true;
+      playing = true;
+      holdUntil = 0;
+      setButton('pause');
+      last = performance.now();
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(frame);
+    };
+    const stop = () => {
+      playing = false;
+      advance = false;
+      holdUntil = 0;
+      cancelAnimationFrame(raf);
+      setButton(pos[stage] >= end[stage] ? 'replay' : 'play');
+    };
+
+    const select = (i: number) => {
+      stop();
+      show(i);
+      pos[i] = 0;
+      if (reduceMotion) {
+        pos[i] = end[i];
+        started = false;
+        setButton('play');
+        render();
+      } else {
+        render();
+        start();
+      }
+    };
+
+    // Keep markers a fixed size on screen however wide the map is drawn.
+    const resize = () => {
+      metersPerPx = svg.viewBox.baseVal.width / svg.getBoundingClientRect().width;
+      for (const el of root.querySelectorAll<SVGElement>('[data-px]')) {
+        const r = Number(el.dataset.px) * metersPerPx;
+        if (el.hasAttribute('data-star')) {
+          el.setAttribute('transform', `translate(${el.dataset.x} ${el.dataset.y}) scale(${r})`);
+        } else {
+          el.setAttribute('r', String(r));
+        }
+      }
+      render();
+    };
+    new ResizeObserver(resize).observe(svg);
+
+    buttons.forEach((b, i) => b.addEventListener('click', () => i !== stage && select(i)));
+    play.addEventListener('click', () => (playing ? stop() : start()));
+    scrub.addEventListener('input', () => {
+      stop();
+      started = true;
+      pos[stage] = Number(scrub.value);
+      setButton(pos[stage] >= end[stage] ? 'replay' : 'play');
+      render();
+    });
+
+    // Play once when the figure first scrolls into view.
+    if (!reduceMotion) {
+      const io = new IntersectionObserver(
+        (entries) => {
+          if (entries.some((e) => e.isIntersecting)) {
+            io.disconnect();
+            if (!started) {
+              pos[0] = 0;
+              start();
+            }
+          }
+        },
+        { threshold: 0.5 },
+      );
+      io.observe(svg);
+    }
+    show(0);
+    render();
+  }
+</script>
