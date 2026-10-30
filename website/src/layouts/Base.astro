@@ -6,15 +6,16 @@ import '@fontsource/google-sans/700.css';
 import '@fontsource-variable/noto-sans/wght.css';
 import '../styles/global.css';
 import { getImage } from 'astro:assets';
-import holoocean from '../assets/figures/fig7-holoocean.webp';
+import thumbnail from '../assets/thumbnail.png';
 import Analytics from '../components/Analytics.astro';
 import { authors, project } from '../config';
 
 const canonical = new URL(Astro.url.pathname, Astro.site).href;
 // Files in public/ are served under the site's base path.
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
-// Link previews get a 1200x630 crop of the HoloOcean render, generated at build time.
-const og = await getImage({ src: holoocean, width: 1200, height: 630, fit: 'cover', format: 'jpg', quality: 80 });
+// Link previews get a 1200x630 crop of the video's YouTube thumbnail, generated at build time.
+// The crop trims about 22 px from its top and bottom, which keeps the title and logos.
+const og = await getImage({ src: thumbnail, width: 1200, height: 630, fit: 'cover', format: 'jpg', quality: 85 });
 const ogImage = new URL(og.src, Astro.site).href;
 ---
 
@@ -40,7 +41,7 @@ const ogImage = new URL(og.src, Astro.site).href;
     <meta property="og:image" content={ogImage} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Two autonomous underwater vehicles in the HoloOcean simulator" />
+    <meta property="og:image:alt" content="CONSORT: planning for GPS-denied cooperative navigation. Two underwater vehicles trace their paths toward a goal, linked by a relay." />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={project.title} />
     <meta name="twitter:description" content={project.description} />
