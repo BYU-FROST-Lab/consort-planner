@@ -34,7 +34,7 @@ import sys
 from collections import defaultdict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_OUT = os.path.join(HERE, "..", "..", "..", "website", "src", "data", "planning-stages.json")
+DEFAULT_OUT = os.path.join(HERE, "..", "..", "website", "src", "data", "planning-stages.json")
 AGENTS = {"1": "support", "2": "primary"}
 DENSE_EVERY = 2
 

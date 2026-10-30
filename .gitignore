@@ -4,3 +4,13 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# new runs and figures (the paper's copies are in results/paper and figures/paper)
+/results/new/*
+!/results/new/.gitkeep
+/figures/new/*
+!/figures/new/.gitkeep
+/.venv/
+/src/sim/.venv/
+__pycache__/
+*.pyc
