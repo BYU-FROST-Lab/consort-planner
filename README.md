@@ -16,7 +16,7 @@
 
 [![Project page](https://img.shields.io/badge/Project-Page-0f6fb3?style=for-the-badge)](https://frostlab.byu.edu/consort-planner/)
 ![Paper: coming soon](https://img.shields.io/badge/Paper-Coming_Soon-lightgrey?style=for-the-badge&logo=arxiv&logoColor=white)
-[![Video](https://img.shields.io/badge/Video-YouTube-ff0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtu.be/prarYmi_3y4)
+[![Video](https://img.shields.io/badge/Video-YouTube-ff0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtu.be/oE4A2in1-W8)
 
 <img src="website/src/assets/figures/fig1-escort-problem.webp" width="560" alt="A primary agent's path passes above an obstacle to the goal while a support agent dips below it toward a landmark, takes a reading, and relays position data to the primary near the goal.">
 

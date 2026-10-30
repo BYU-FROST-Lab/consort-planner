@@ -42,7 +42,7 @@ export const affiliations = ['Brigham Young University', 'University of Utah'];
 export const arxivId: string | undefined = undefined;
 
 /** The YouTube video ID (the part after `youtu.be/`), embedded under the hero and behind the Video button. */
-export const youtubeId = 'prarYmi_3y4';
+export const youtubeId = 'oE4A2in1-W8';
 
 /** BibTeX fields. Until `booktitle` is set, the entry is arXiv's @misc format. */
 export const publication = {
