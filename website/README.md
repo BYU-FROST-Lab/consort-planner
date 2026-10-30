@@ -22,9 +22,9 @@ Then open <http://localhost:4321/consort-planner/>. `npm run check` type-checks 
 |---|---|
 | Title, authors, venue, links, BibTeX fields | `src/config.ts` |
 | Section text | `src/pages/index.astro` |
-| Figures | `src/assets/figures/`: Figs. 3–6 rendered from their PDFs in `code/figures/paper`, Figs. 1, 7, and 8 cropped from the paper |
-| Constraint ladder (Fig. 2) | `src/data/constraint-ladder.json`, exported from the planner's Fig. 2 runs in `code/results/paper/ladder` |
-| Planning stages (Fig. 1 run) | `src/data/planning-stages.json`, exported by `code/figures/scripts/export_planning_stages.py` from the Fig. 1 run's logs in the supplementary video's data (`video/data/fig1`) |
+| Figures | `src/assets/figures/`: Figs. 3–6 rendered from their PDFs in `../figures/paper`, Figs. 1, 7, and 8 cropped from the paper |
+| Constraint ladder (Fig. 2) | `src/data/constraint-ladder.json`, exported from the planner's Fig. 2 runs in `../results/paper/ladder` |
+| Planning stages (Fig. 1 run) | `src/data/planning-stages.json`, exported by `../figures/scripts/export_planning_stages.py` from the Fig. 1 run's logs in the supplementary video's data (`video/data/fig1`) |
 | Table I | `src/components/ResultsTable.astro`, typed in from the paper |
 | Footer links, favicons | `src/data/footer.ts` and `public/`, copied from the FROST Lab site; keep them in sync |
 
