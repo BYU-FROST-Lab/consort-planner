@@ -26,86 +26,20 @@
 
 ---
 
-CONSORT is a centralized planner for the escort problem. A primary agent must reach a goal in minimum time with its localization uncertainty under a terminal bound. Support agents have no goals of their own and are routed only to keep the primary's uncertainty under that bound. CONSORT optimizes over the agents' mean trajectories and propagates covariance along them only to evaluate the constraints. It first searches a heading-aware hexagonal lattice jointly over all agents, then refines the result into B-spline trajectories. Both stages enforce the curvature bound, chance-constrained obstacle avoidance, and the terminal uncertainty bound.
+CONSORT is a centralized planner for the escort problem. A primary agent must reach a goal in minimum time with its localization uncertainty under a terminal bound. Support agents have no goals of their own and are routed only to keep the primary's uncertainty under that bound.
 
-This repository holds the code and data to reproduce every result in the paper, and the source of the project page.
+CONSORT optimizes over the agents' mean trajectories and propagates covariance along them only to evaluate the constraints. It first searches a heading-aware hexagonal lattice jointly over all agents, then refines the result into B-spline trajectories. Both stages enforce the curvature bound, chance-constrained obstacle avoidance, and the terminal uncertainty bound.
 
-## Layout
+## Getting started
 
-Every command below is run from the repository root.
-
-```
-src/planner/              the planner; src/planner/algorithms/hexspline_cl.jl is CONSORT, the rest are the four baselines
-src/sim/                  HoloOcean simulator and factor-graph estimator (Sec. VI)
-experiments/              one driver per result, each checking its output against the paper
-experiments/configs/      sim_mission/: the simulated mission (Sec. VI); benchmark/: the benchmark (Sec. V) and Fig. 2
-results/paper/            the runs behind every figure, and RESULTS.md with every table and number
-results/new/              where the drivers write new runs (not tracked)
-figures/scripts/          the scripts that draw the figures
-figures/paper/            the published figures (PDF)
-figures/new/              where the figure scripts write new figures (not tracked)
-tests/                    planner tests
-website/                  the project page (Astro and Tailwind CSS, deployed to GitHub Pages); see website/README.md
-```
-
-`results/paper/` holds:
-
-| Folder | Content | Paper |
-|---|---|---|
-| `benchmark/` | `trials_all.csv`, one row per planner run over 50 scenarios and 8 constraint levels, and its `summary.csv` | Figs. 3, 4, Table I |
-| `ablation/` | the same for the 30-scenario ablation | Figs. 5, 6, Table I |
-| `ladder/` | the four plans of the constraint ladder | Fig. 2 |
-| `fig1/` | the Fig. 1 plan and its config | Fig. 1 |
-| `montecarlo/` | the plan flown in simulation and its 30 trials `mc0`..`mc29` | Fig. 8, Sec. VI-C |
-
-## Setup
-
-Requires [Julia 1.12](https://julialang.org/downloads/) and Python 3.12. The
-results were produced on Ubuntu with an AMD Ryzen 5 5600X and 32 GB of RAM.
+The planner needs [Julia 1.12](https://julialang.org/downloads/). Commands are run from the repository root.
 
 ```bash
 git clone https://github.com/BYU-FROST-Lab/consort-planner.git && cd consort-planner
-./setup.sh              # pinned Julia packages (Project.toml, Manifest.toml) and .venv for the figures
-tests/run_tests.sh      # about 1 minute
+julia --project=. -e 'using Pkg; Pkg.instantiate()'
 ```
 
-The figure scripts use the Nimbus Roman font (`fonts-urw-base35` on
-Debian/Ubuntu) and fall back to another serif font without it.
-
-## Reproducing the results
-
-Each driver writes its runs to `results/new/` and its figures to
-`figures/new/`, and ends by checking its output against the paper. Compare
-the figures with `figures/paper/`.
-
-| Result | Driver | Time | Checks |
-|---|---|---|---|
-| Fig. 1 | `experiments/fig1.sh` | 1 min | primary length 1100.0 m, terminal σ 1.799 m |
-| Fig. 2 | `experiments/fig2.sh` | 4 min | length and σ of all four panels |
-| Figs. 3-6, Table I | `experiments/figs3to6.sh` | seconds | Table I rows, 40/50 vs 27/50 solved at the 50 % level |
-| Fig. 8, Sec. VI-C | `experiments/fig8.sh` | seconds | 30/30 reached, 30/30 collision-free, 28/30 under the bound, σ 1.80 m predicted vs 1.70 m measured |
-| The simulated mission's plan | `experiments/plan_behind_wall.sh` | 2 min | identical to the plan in `results/paper/montecarlo` |
-| The benchmark and ablation runs | `SMOKE=1 experiments/sweeps.sh` | 1 h | the first 2 scenarios of each, every run identical to `results/paper/` |
-| | `experiments/sweeps.sh` | about 20 h | all 80 scenarios, every run compared with `results/paper/` |
-
-**Figs. 3-6 and Table I** are drawn from `results/paper/benchmark` and
-`results/paper/ablation`. `experiments/sweeps.sh` re-runs those sweeps from
-scratch. For each scenario it
-first plans a single unconstrained agent (giving L_ref and U_ref), then runs
-every planner with the bound at 100 % down to 30 % of U_ref. The sweep files
-run up to 4 planners at once and each CONSORT run can use about 6 GB, so on a
-smaller machine lower `workers:` in `experiments/configs/benchmark/sweep*.yaml`. Success rates
-and lengths reproduce exactly. Wall-clock times (Figs. 4 and 6) depend on the
-machine, and a much slower machine can hit the 1200 s per-run limit.
-
-**Fig. 8** is drawn from the 30 simulated trials in `results/paper/montecarlo`.
-Flying them again needs HoloOcean and a GPU; see `src/sim/README.md`.
-
-**Table II** (the estimator's noise) is derived from the planner config by
-`FactorGraph.calibrate_to_planner` in `src/sim/factor_graph.py`; the values are in
-`results/paper/RESULTS.md`.
-
-## Using the planner
+To plan the mission flown in the paper's simulation (Sec. VI), which takes about 2 minutes:
 
 ```bash
 OUTPUT_DIR=results/new/my_run julia --project=. experiments/generate_plan.jl experiments/configs/sim_mission
@@ -113,9 +47,15 @@ OUTPUT_DIR=results/new/my_run julia --project=. experiments/generate_plan.jl exp
 
 This writes `results/new/my_run/hexspline_cl/results.yaml` (primary length and
 terminal uncertainty), `csv/main_ctrls.csv` (the B-spline control points of
-every agent) and figures. A config is a folder of flat `key: value` files:
-`main.yaml` holds the scenario, uncertainty model and constraints, and
-`<planner>.yaml` the planner's own settings. Useful keys:
+every agent) and figures. `tests/run_tests.sh` runs the planner's tests in about a minute.
+
+## Planning your own scenario
+
+A config is a folder of flat `key: value` files: `main.yaml` holds the scenario,
+uncertainty model and constraints, and `<planner>.yaml` the planner's own
+settings. Start from a copy of `experiments/configs/sim_mission`; the comments in
+its `main.yaml` and `hexspline_cl.yaml` describe every key. The ones you are
+most likely to change:
 
 | Key | Meaning |
 |---|---|
@@ -125,8 +65,19 @@ every agent) and figures. A config is a folder of flat `key: value` files:
 | `unc_radius_threshold` | the terminal bound ū in metres |
 | `astar_iteration_limit` | expansion budget of the joint search (memory grows about 1.8 GB per 300k expansions) |
 
-The comments in `experiments/configs/sim_mission/main.yaml` and
-`hexspline_cl.yaml` describe every key.
+## Comparing with the baselines
+
+The paper compares CONSORT with four baselines (Sec. V-B), all in `src/planner/algorithms/`:
+
+- **Greedy** (`greedy`). The primary takes its shortest route; the support takes whichever next step most reduces the primary's uncertainty.
+- **Formation** (`formation`). The primary plans alone while the support holds a fixed position beside it.
+- **Sequential** (`sequential`). Agents plan one at a time: the primary, then the support against it, then the primary once more.
+- **CL-GBT** (`clgbt`). A sampling-based tree over both agents' joint state, after Theurkauf et al., instead of a lattice search.
+
+To run several planners on the same scenario, list them in `algorithms`, separated by commas,
+for example `algorithms: hexspline_cl, greedy, sequential`. Each writes to its own folder under `OUTPUT_DIR`.
+
+## How the code maps to the paper
 
 | Paper | Code |
 |---|---|
@@ -135,6 +86,26 @@ The comments in `experiments/configs/sim_mission/main.yaml` and
 | Heading-aware hexagonal lattice | `build_hex_graph`, `src/planner/graph.jl` |
 | Joint search and B-spline refinement, Algorithm 1 | `joint_astar`, `optimize_continuous`, `src/planner/algorithms/hexspline_cl.jl` |
 | Random benchmark scenarios | `generate_scenario`, `src/planner/scenario_generation.jl` |
+
+## Repository layout
+
+```
+src/planner/    the planner: CONSORT (algorithms/hexspline_cl.jl) and the four baselines
+src/sim/        HoloOcean simulator and factor-graph estimator (Sec. VI); see src/sim/README.md
+experiments/    the planner's entry point, its configs, and the scripts that reproduce the paper
+results/paper/  the runs behind every figure and table in the paper
+figures/        the scripts that draw the figures, and the published figures
+tests/          planner tests
+website/        the project page; see website/README.md
+```
+
+## Reproducing the paper
+
+Every figure and table in the paper has a script in `experiments/` that
+reproduces it and checks the result against the paper, and the runs behind
+them are in `results/paper/`. [`experiments/README.md`](experiments/README.md)
+covers the extra setup (Python 3.12 for the figures), how long each script
+takes, and what it checks.
 
 ## Citation
 
