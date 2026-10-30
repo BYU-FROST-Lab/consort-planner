@@ -6,7 +6,7 @@
 export const project = {
   name: 'CONSORT',
   title:
-    'CONSORT: Cooperative Navigation with Support-Optimized Routing and Trajectories for GPS-Denied Escort Missions',
+    'CONSORT: Uncertainty-Constrained Multi-Robot Planning for Cooperative Localization in GPS-Denied Environments',
   /** One sentence for search results and link previews. */
   description:
     'CONSORT routes support agents so that a primary agent reaches its goal in minimum time with its localization uncertainty under a terminal bound, in GPS-denied environments.',

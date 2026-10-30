@@ -2,7 +2,7 @@
 
 Code and data to reproduce the results of
 
-> **CONSORT: Cooperative Navigation with Support-Optimized Routing and Trajectories for GPS-Denied Escort Missions**
+> **CONSORT: Uncertainty-Constrained Multi-Robot Planning for Cooperative Localization in GPS-Denied Environments**
 > Tony Zhang, Ryan Bartholomew, Kalliyan Velasco, Joshua Mangelson, Brady Moon.
 > [FROST Lab](https://frostlab.byu.edu), Brigham Young University.
 
@@ -125,15 +125,13 @@ If you use this code, please cite the paper. The up-to-date BibTeX entry is on t
 
 ```bibtex
 @article{zhang2026consort,
-  title   = {{CONSORT}: Cooperative Navigation with Support-Optimized Routing and Trajectories for {GPS}-Denied Escort Missions},
+  title   = {{CONSORT}: Uncertainty-Constrained Multi-Robot Planning for Cooperative Localization in {GPS}-Denied Environments},
   author  = {Zhang, Tony and Bartholomew, Ryan and Velasco, Kalliyan and Mangelson, Joshua and Moon, Brady},
   journal = {arXiv preprint},
   year    = {2026}
 }
 ```
 
-## License
-
-The code is released under the [Clear BSD License](../LICENSE) (`BSD-3-Clause-Clear`). It grants no patent rights. The paper's text and figures reproduced on the project page are not covered by this license.
+## Acknowledgments
 
 This work was supported by the NSF-funded BYU Robotics Pioneers REU program (Award No. 2447307) and in part by NAVSEA NEEC (Award No. N00174-23-1-0005) in coordination with NSWC PCD.
