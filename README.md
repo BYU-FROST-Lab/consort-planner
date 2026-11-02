@@ -15,7 +15,8 @@
 [FROST Lab](https://frostlab.byu.edu)
 
 [![Project page](https://img.shields.io/badge/Project-Page-0f6fb3?style=for-the-badge)](https://frostlab.byu.edu/consort-planner/)
-![Paper: coming soon](https://img.shields.io/badge/Paper-Coming_Soon-lightgrey?style=for-the-badge&logo=arxiv&logoColor=white)
+[![Paper (PDF)](https://img.shields.io/badge/Paper-PDF-b31b1b?style=for-the-badge)](https://arxiv.org/pdf/2610.41235)
+[![arXiv](https://img.shields.io/badge/arXiv-2610.41235-b31b1b?style=for-the-badge&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2610.41235)
 [![Video](https://img.shields.io/badge/Video-YouTube-ff0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtu.be/oE4A2in1-W8)
 
 <img src="website/src/assets/figures/fig1-escort-problem.webp" width="560" alt="A primary agent's path passes above an obstacle to the goal while a support agent dips below it toward a landmark, takes a reading, and relays position data to the primary near the goal.">
@@ -109,14 +110,17 @@ takes, and what it checks.
 
 ## Citation
 
-If you use this code, please cite the paper. The up-to-date BibTeX entry is on the [project page](https://frostlab.byu.edu/consort-planner/#bibtex); until the preprint is posted it is:
+If you use this code, please cite [the paper](https://arxiv.org/abs/2610.41235):
 
 ```bibtex
-@article{zhang2026consort,
-  title   = {{CONSORT}: Uncertainty-Constrained Multi-Robot Planning for Cooperative Localization in {GPS}-Denied Environments},
-  author  = {Zhang, Tony and Bartholomew, Ryan and Velasco, Kalliyan and Mangelson, Joshua and Moon, Brady},
-  journal = {arXiv preprint},
-  year    = {2026}
+@misc{zhang2026consort,
+  title         = {{CONSORT}: Uncertainty-Constrained Multi-Robot Planning for Cooperative Localization in {GPS}-Denied Environments},
+  author        = {Tony Zhang and Ryan Bartholomew and Kalliyan Velasco and Joshua Mangelson and Brady Moon},
+  year          = {2026},
+  eprint        = {2610.41235},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.RO},
+  url           = {https://arxiv.org/abs/2610.41235}
 }
 ```
 
