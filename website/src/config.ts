@@ -36,13 +36,13 @@ export const authors: Author[] = [
 export const affiliations = ['Brigham Young University', 'University of Utah'];
 
 /**
- * TODO before publishing: the preprint's arXiv ID, e.g. '2610.01234'. The
- * Paper and arXiv buttons and the BibTeX all come from it.
+ * The preprint's arXiv ID. The Paper button links to its PDF, and the arXiv
+ * button and the BibTeX to its abstract page.
  */
-export const arxivId: string | undefined = undefined;
+export const arxivId: string | undefined = '2610.41235';
 
 /** The YouTube video ID (the part after `youtu.be/`), embedded under the hero and behind the Video button. */
-export const youtubeId = 'prarYmi_3y4';
+export const youtubeId = 'oE4A2in1-W8';
 
 /** BibTeX fields. Until `booktitle` is set, the entry is arXiv's @misc format. */
 export const publication = {
